@@ -1,0 +1,549 @@
+\documentclass[article, nojss]{jss}
+
+%\VignetteIndexEntry{R Package rjmcmc: The Calculation of Posterior Model Probabilities from MCMC Output}
+
+%\VignetteEngine{knitr::knitr}
+
+\usepackage{amsfonts, amssymb, setspace, float, tikz, amsmath}
+\usetikzlibrary{shapes, arrows, backgrounds, shapes.multipart}
+\tikzset{font={\fontsize{8pt}{10}\selectfont}}
+
+\renewcommand{\bibsection}{}
+\bibpunct{(}{)}{,}{a}{}{,}
+
+\author{Nicholas Gelling\\University of Otago \And Matthew R.  Schofield\\University of Otago \And Richard J. Barker\\University of Otago}
+\Plainauthor{Nicholas Gelling, Matthew R. Schofield, Richard J. Barker}
+\title{\proglang{R} Package \pkg{rjmcmc}: The Calculation of Posterior Model Probabilities from MCMC Output}
+\Plaintitle{R Package rjmcmc: The Calculation of Posterior Model Probabilities from MCMC Output}
+\Shorttitle{\proglang{R} Package \pkg{rjmcmc}}
+
+\Abstract{Reversible jump Markov chain Monte Carlo is a Bayesian multimodel inference method that involves `jumping' between several candidate models. The method is powerful, but can be challenging to implement. Presented is an \proglang{R} package \pkg{rjmcmc} which automates much of the reversible jump process, in particular the post-processing algorithms of \citet{barker2013bayesian}. Previously-estimated posterior distributions (in the form of coda files) are used to estimate posterior model probabilities and Bayes factors. Automatic differentiation is used for the partial derivative calculations required in finding Jacobian determinants.}
+
+\Keywords{Reversible jump, Bayesian multimodel inference, \proglang{R}, post-processing, Bayes factors, automatic differentiation}
+\Plainkeywords{Reversible jump, Bayesian multimodel inference, R, MCMC, post-processing, Bayes factors, automatic differentiation}
+
+\Address{
+  Nicholas Gelling\\
+  University of Otago\\
+  Department of Mathematics and Statistics\\
+  PO Box 56\\
+  Dunedin 9054\\
+  New Zealand\\
+  E-mail: \email{ngelling@maths.otago.ac.nz}\\
+}
+
+%% need no \usepackage{Sweave.sty}
+
+
+\begin{document}
+
+
+\section{Introduction}
+\label{sec: intro}
+
+Discriminating between models is a difficult problem.  There are several options for models fitted using Bayesian inference, including Bayes factors and posterior model probabilities \citep{kass1995bayes}, information criteria such as DIC and WAIC \citep{spiegelhalter2002bayesian, watanabe2010asymptotic} and cross validation \citep{arlot2010survey}.  All of these approaches have practical challenges: Bayes factors and posterior model probabilities require either the evaluation of a complex high dimensional integral or specification of a trans-dimensional algorithm such as reversible jump Markov chain Monte Carlo (RJMCMC); information criteria require an estimate of the effective number of parameters; cross-validation requires burdensome computational effort.  Our focus is on the first two of these approaches.  We have developed an \proglang{R} package that posthoc calculates Bayes factors and posterior model probabilities using MCMC output, simplifying a frequently daunting problem.
+
+The Bayes factor was developed by \cite{jeffreys1935some}.  It is considered by many to be the default method of Bayesian model comparison and features in nearly every textbook on Bayesian inference \cite[e.g.][]{gelman2014bayesian,gill2014bayesian}.  The Bayes factor $B_{ij}$ compares the marginal likelihood for two competing models indexed $i$ and $j$,
+\[
+B_{ij} = \frac{p(y| M=i) }{ p(y| M=j) } = \frac{\int p(y|\theta_i,M=i) p(\theta_i | M=i) d\theta_i}{\int p(y|\theta_j,M=j) p(\theta_j | M=j) d\theta_j},
+\]
+where $M$ is a categorical variable representing model choice, $p(y|\theta_k,M=k)$ is the likelihood function under model $k$, and $p(\theta_k | M=k)$ is the prior distribution under model $k$. It is straightforward to compute Bayes factors from posterior model probabilities and vice versa provided the prior model weights are known \citep{kass1995bayes}.  This facilitates Bayesian model averaging \citep{hoeting1999bayesian} allowing for model uncertainty to be accounted for in estimation.  
+
+% Classical model selection techniques tend to evaluate each model individually and decide which model fits best (often after adjusting for the number of parameters). In Bayesian multimodel inference, we condition on one of the models in our set being the `truth'. We assign prior probabilities that each model is the `true' model, and use data to infer the posterior probabilities. Depending on philosophy, it is either unlikely or impossible for a model to be genuinely `true'. \citet{barker2015truth} argue that this is irrelevant -- each posterior probability calculation is conditional on the same criterion, so the posterior probabilities are valid relative to one another.
+
+A major limitation in the implementation of Bayes factors and corresponding posterior model probabilities is the difficulty of calculating the marginal integral. Approximation is frequently used; for instance, the Bayesian Information Criterion (BIC) is derived by \citet{schwarz1978estimating} as an approximation to the Bayes factor.
+
+Markov chain Monte Carlo (MCMC) approaches are also available for calculating the posterior model probabilities. \citet{carlin1995bayesian} propose an MCMC sampler that uses `pseudo-priors' to facilitate jumping between models while RJMCMC \citep{green1995reversible} augments the model space in order to move between models using bijections.  Generating sensible pseudo-priors or augmenting variables for these algorithms is challenging. \citet{gill2014bayesian} notes that reversible jump methodology continues to be an active research area. The \proglang{R} package demonstrated is the first reversible jump package to be released on CRAN, and offers an accessible framework for the calculation of Bayes factors and posterior model probabilities.
+
+In Section \ref{sec: algos}, RJMCMC is discussed further and a Gibbs sampling approach to RJMCMC is described. In Section \ref{sec: rjmcmc}, we introduce the \proglang{R} package \pkg{rjmcmc} which implements the Gibbs algorithm with examples. We conclude with a discussion in Section \ref{sec: discuss}.
+
+
+\section{Transdimensional algorithms}
+\label{sec: algos}
+
+Suppose we have data $y$, a set of $N$ models indexed $1, \ldots, N$, and a model-specific parameter vector $\theta_k$ for each model, $k=1,\ldots,N$. If we also assign prior model probabilities $p(M=k)$, $k=1,\ldots,N$, we can find the posterior model probabilities
+\[ \frac{p(M=i | y)}{p(M=j | y)} = B_{ij} \times \frac{p(M=i)}{p(M=j)}. \]
+Hereafter, we use $p(\cdot| M_k)$ as shorthand notation for $p(\cdot| M=k)$ and $p(M_k|\cdot)$ as shorthand notation for $p(M=k|\cdot)$.
+
+RJMCMC \citep{green1995reversible} is an approach to avoiding the integral required in finding the posterior model probabilities.  A bijection (i.e. an invertible one-to-one mapping) is specified between the parameter spaces of each pair of models; a total of ${N \choose 2}$ bijections are required. To match dimensions between models, augmenting variables $u_k$ are required so that $\text{dim}(\theta_{k},u_{k}) = \text{dim}(\theta_{j},u_{j})$ for $j,k \in \{1,\ldots,N\}$. The augmenting variables do not change the posterior distribution but do affect computational efficiency. Figure \ref{fig: rjmcmc} gives a stylised visual representation of the sets and bijections involved in RJMCMC.
+
+\begin{figure}[!htbp]
+\begin{center}
+\begin{tikzpicture}[scale=3.7, shorten >=1pt,->, every text node part/.style={align=center}]
+  \tikzstyle{vertex}=[circle,fill=black!25,minimum size=8pt,inner sep=0pt]
+  \foreach \name/\angle/\text in {4/234/{Parameter Set \\ $(\theta_4, u_4)$ \\ for $M_4$}, 5/162/{Parameter Set \\ $(\theta_5, u_5)$ \\ for $M_5$},
+                                  1/90/{Parameter Set \\ $(\theta_1, u_1)$ \\ for $M_1$}, 2/18/{Parameter Set \\ $(\theta_2, u_2)$ \\ for $M_2$}, 3/-54/{Parameter Set \\ $(\theta_3, u_3)$ \\ for $M_3$}}
+    \node[vertex,xshift=6cm,yshift=.5cm] (\name) at (\angle:1cm) {\text};
+  \foreach \from/\to in {1/2,2/3,3/4,4/5,5/1,1/3,2/4,3/5,4/1,5/2}
+    \draw [<->] (\from) -- (\to);
+\end{tikzpicture}
+\caption{The ten reversible jump bijections required for a five-model set. Arrows represent bijections between parameter sets. Each parameter set contains the model-specific parameters $\theta_k$ and augmenting variables $u_k$.}
+\label{fig: rjmcmc}
+\end{center}
+\end{figure}
+
+The RJMCMC algorithm proceeds as follows.  At iteration $i$ of the Markov chain, a model $M^{*} = h$ is proposed with the current value denoted $M^{(i-1)}={j}$.   Proposed parameter values for model $M^{*}$ are found using the bijection $f_{jh}(\cdot)$
+\[
+(\theta^{*}_{h},u^{*}_{h}) = f_{jh}(\theta^{(i-1)}_{j},u_{j}^{(i-1)}).
+\]
+The joint proposal is then accepted using a Metropolis step \citep{green1995reversible}.
+In defining a bijection, we can incorporate any known relationships between the parameters of two models and potentially simplify the relationship between the augmenting variables. Reasonable bijections can be hard to find if it is unclear how the parameters in each model correspond to one another.  We can only determine if our bijections are inefficient once the algorithm has run and failed to converge; at this point we must repeat the process with new bijections.
+
+The RJMCMC framework is general and powerful, but has significant mathematical complexity and can be challenging to implement. \citet{barker2013bayesian} suggest a restricted version of Green's RJMCMC algorithm that can be implemented via Gibbs sampling. The approach is based on the introduction of a universal parameter denoted by $\psi$, a vector of dimension greater than or equal to
+\[ \text{max}\{\text{dim}(\theta_k)\} \text{, } k=1,\dots,N. \]
+From $\psi$, the model-specific parameters $\theta_k$, along with augmenting variables $u_{k}$, can be calculated using the bijection $g_k(\psi) = (\theta_k',u_k')'$ with $\psi = g^{-1}((\theta_k',u_k')')$.  In practice this means that in order to find the parameters $\theta_{j}$ from $\theta_{k}$ we must first find the universal parameter $\psi$ (Figure \ref{fig: lbfig}).  If we have $N$ models in our set, Barker \& Link's approach requires the specification of $N$ bijections where Green's approach requires $N \choose 2$ bijections.   \citet{link2009bayesian} refer to this method as a `hybrid'  between RJMCMC and the approach by \citet{carlin1995bayesian}.
+
+
+
+\begin{figure}
+\begin{center}
+\begin{tikzpicture}[scale=4, shorten >=1pt,->, every text node part/.style={align=center}]
+  \tikzstyle{vertex}=[circle,fill=black!25,minimum size=8pt,inner sep=0pt]
+  \node[vertex, fill=black!10] (0) at (7:1.5cm) {Universal \\Parameter \\Space \\$\psi$};
+  \foreach \name/\angle/\text in {4/234/{Parameter Set \\ $(\theta_4, u_4)$ \\ for $M_4$}, 5/162/{Parameter Set \\ $(\theta_5, u_5)$ \\ for $M_5$},
+                                  1/90/{Parameter Set \\ $(\theta_1, u_1)$ \\ for $M_1$}, 2/18/{Parameter Set \\ $(\theta_2, u_2)$ \\ for $M_2$}, 3/-54/{Parameter Set \\ $(\theta_3, u_3)$ \\ for $M_3$}}
+    \node[vertex,xshift=6cm,yshift=.5cm] (\name) at (\angle:1cm) {\text};
+  \foreach \from/\to in {0/1,0/2,0/3,0/4,0/5}
+    \draw [<->] (\from) -- (\to);
+\end{tikzpicture}
+\caption{In Barker \& Link's reversible jump approach, five bijections are required for a five-model set. Each transformation is evaluated via the universal parameter $\psi$.}
+\label{fig: lbfig}
+\end{center}
+\end{figure}
+
+
+The joint distribution can be expressed as
+\[ p(y, \psi, M_k) = p(y|\psi,M_k)p(\psi|M_k)p(M_k), \]
+where $p(y|\psi,M_k) = p(y|\theta_{k},M_k)$ is the data model for model $k$,  $p(\psi|M_k)$ is the prior for $\psi$ for model $k$ and $p(M_k)$ is the prior model probability for model $k$. 
+
+In general we do not have priors in the form $p(\psi|M_k)$ but $p(\theta_k | M_k)$.  To find $p(\psi | M_k)$ we note that
+\[ 
+p(\psi | M_k) = p(g_k(\psi) | M_k) \left|\frac{\partial g_k(\psi)}{\partial \psi}\right| 
+\]
+where $p(g_k(\psi) | M_k) = p(\theta_k, u_k | M_k)$.  If we assume prior independence between $\theta_{k}$ and $u_{k}$ this reduces to
+\[
+p(\theta_k, u_k | M_k) = p(\theta_k | M_k) p(u_k | M_k).
+\]
+The term $\left|\frac{\partial g_k(\psi)}{\partial \psi}\right|$ is the determinant of the Jacobian for the bijection $g_k$ which we hereafter denote as $|J_{k}|$. Once we know $|J_{k}|$, we can find the prior $p(\psi | M_k)$ and in turn the joint distribution $p(y, \psi, M)$.
+
+The algorithm proceeds by defining a Gibbs sampler that alternates between updating $M$ and $\psi$. 
+The full-conditional distribution for $M$ is categorical with probabilities 
+\[ p(M_k | \cdot) = \frac{p(y, \psi, M_k)}{\sum_j p(y, \psi, M_j)}. \] 
+To draw from the full-conditional for $\psi$, we sample $\theta_k$ from its posterior $p(\theta_k | M_k, y)$ and $u_k$ from its prior $p(u_k | M_k)$ and determine $\psi = g_k^{-1}((\theta_k', u_k')')$.  
+
+Note that the dimension of $J_{k}$ is $\text{dim}(\psi) \times \text{dim}(\psi)$, for each of the $N$ models under consideration.  If we consider several models with several parameters each, finding $J_{1},\ldots,J_{N}$ could involve hundreds of partial derivative calculations. We describe the automatic calculation of $|J_{k}|$ in the next section.  This makes Barker \& Link's formulation of RJMCMC more elegant and user-friendly.
+
+\section[Implementation in R package rjmcmc]{Implementation in \proglang{R} package \pkg{rjmcmc}}
+\label{sec: rjmcmc}
+
+Available from the Comprehensive \proglang{R} Archive Network (CRAN), the \pkg{rjmcmc} package utilises the work of \citet{barker2013bayesian} and the \pkg{madness} package to perform RJMCMC post-processing.
+
+\subsection[Automatic differentiation and madness]{Automatic differentiation and \pkg{madness}}
+
+Automatic differentiation \citep[AD; ][]{griewank2008evaluating}, also called algorithmic differentiation, numerically evaluates the derivative of a function for a given input in a mechanical way. The process involves breaking a program into a series of elementary arithmetic operations (+, $\times$) and elementary function calls ($\log$, $\exp$, etc.). The chain rule is then propogated along these operations to give derivatives. The resulting derivatives are usually more numerically accurate than those from finite differencing and many other numerical methods \citep{carpenter2015stan}. AD tends to be more versatile than symbolic differentiation as it works on any computer program, including those with loops and conditional statements \citep{carpenter2015stan}.
+
+Automatic differentiation has two variants -- forward-mode and reverse-mode. We focus on forward-mode as this is the variant used by our software. Suppose we have a composition such that the chain rule can be written as $\frac{dy}{dx} = \frac{\partial y}{\partial w_1} \frac{\partial w_1}{\partial w_2} \frac{\partial w_2}{\partial x}$, where $w_1, w_2$ are variables representing intermediate chain rule sub-expressions. Then forward-mode AD traverses the chain rule from the inside to the outside. We compute $\frac{\partial w_2}{\partial x}$ first and work backwards to get to $\frac{dy}{dx}$. This amounts to fixing the independent variable $x$. In a multivariate situation where both $\mathbf{x}$ and $\mathbf{y}$ are vectors, we consider each independent variable $x_i$ one at a time, differentiating the entire vector $\mathbf{y}$ with respect to $x_i$.
+
+Recently published, the \pkg{madness} package \citep{madness-Manual} performs forward-mode automatic differentiation from within \proglang{R} using the S4 class \code{madness}. The package is not reliant on any external AD software. The primary drawback to \pkg{madness} is that it only calculates derivatives of specific \proglang{R} functions. Fortunately, the list of supported functions is extensive and is given in \citet{madness-Manual}.
+
+The function \code{adiff} from the \pkg{rjmcmc} package is essentially a wrapper to the primary functionality of \pkg{madness} as used in this application. The usage is
+\[ \texttt{adiff(func, x, ...)}. \]
+The object \code{x} is converted into a \code{madness} object, and the function \code{func} is applied to it. Generally, \code{func} will be a user-defined function of some sort. The `\code{...}' represents any further arguments to be passed to \code{func}.
+
+The \code{adiff} function returns the result of computing \code{func(x, ...)} and, more importantly, the Jacobian matrix of the transformation \code{func}. This is accessed as the \code{gradient} attribute of the result. For a basic example, consider the function \code{x3}, which returns the cube of an object \code{x}. Suppose we pass $x_1 = 5, x_2 = 6$.
+<<>>=
+x3 = function(x){
+ return(x^3)
+}
+y = rjmcmc::adiff(x3, c(5,6))
+attr(y, "gradient")
+@
+Entry $(i,j)$ in the Jacobian is the result of differentiating \code{func} with respect to $x_i$ and evaluating the derivative at $x_j$. See the package documentation for further detail about this function.
+
+
+\subsection[The rjmcmcpost function]{The \texttt{rjmcmcpost} function}
+
+The core function of the \pkg{rjmcmc} package is \code{rjmcmcpost}, which automates much of the reversible jump MCMC process. An \code{rjmcmcpost} function call is of the form:
+\[ \texttt{rjmcmcpost(post.draw, g, ginv, likelihood, param.prior, model.prior, chainlength)}. \]
+
+For a model set of size $N$, the user must provide:
+\begin{itemize}
+\item \code{post.draw}: $N$ functions that randomly draw from the posterior distribution $p(\theta_k | y, M_k)$ for every $k$. Generally these functions sample from the coda output of a model fitted using MCMC. Functions that draw from the posterior in known form are also allowed.
+\item \code{g}: $N$ functions specifying the transformations from $\psi$ to $(\theta_k, u_k)$ for every $k$.
+\item \code{ginv}: $N$ functions specifying the transformations from $(\theta_k, u_k)$ to $\psi$ for every $k$. These are the inverse transformations $g^{-1}$.
+\item \code{likelihood}: $N$ functions specifying the log-likelihood functions $\log p(y | \theta_k, M_k)$ for the data under each model.
+\item \code{param.prior}: $N$ functions specifying the log-priors $\log p(\theta_k|M_k)$ for each model-specific parameter vector $\theta_k$.
+\item \code{model.prior}: A vector of the prior model probabilities $p(M_k)$.
+\end{itemize}
+
+There are three outputs from the \code{rjmcmcpost} function:
+\begin{enumerate}
+  \item The transition matrix \code{\$TM}, which describes how the Markov chain for $M$ moves over time. The $(i,j)$th entry in this matrix is the probability of moving from model $M_i$ to model $M_j$ at a given time step. The diagonal entries correspond to retaining a model, while the off-diagonal entries correspond to switching models.
+  \item The posterior model probabilities \code{\$prb}.  The $i$th entry in this vector is $p(M_{i}|y)$.
+  \item The Bayes factors \code{\$BF}, found using
+\[ 
+\text{BF}_{ij} = \frac{p(y | M_i)}{p(y | M_j)} = \frac{p(M_i | y)}{p(M_j | y)}\frac{p(M_j)}{p(M_i)}. 
+\]  
+
+The Bayes factors from \code{rjmcmcpost} compare each model to the first model -- i.e. they are BF$_{i1}$, $i=1,\dots,N$. The first Bayes factor printed will always equal 1.
+\end{enumerate}
+
+Crucially, this implementation is a post-processing algorithm. We use the coda to sample from the model-specific posteriors $p(\theta_{k}|y,M_{k})$.  Once we have fitted each of the $N$ models under consideration we are able to quickly post-process for several sets of bijections $g$ to optimize efficiency.  By contrast, standard RJMCMC requires the entire algorithm to be repeated in order to modify the bijections.
+
+
+\subsection{Example 1: Poisson vs. negative binomial}
+
+This example, originally from \citet{green2009reversible}, uses the goals scored over three seasons of English Premier League football as count data. There were 380 games in each season, so $N$=1140. Each observation is the total number of goals scored in a single game.
+
+We are interested in determining whether the counts are overdispersed relative to a Poisson distribution. To this end we consider two models. Under Model 1, the number of goals $y_i$ in game $i$ ($i$ = $1,\dots,N$) is assumed to follow a Poisson distribution with constant mean $\lambda > 0$.
+\[ M_1: y_i \sim \mbox{Pois}(\lambda), \hspace{1.5cm} L(y|\lambda) = \prod_{i=1}^N \frac{\lambda^{y_i}}{y_i!} \exp(-\lambda).\]
+
+Under Model 2, the number of goals is instead assumed to follow a negative binomial distribution, with parameters $\lambda>0$ and $\kappa>0$.
+\[ M_2: y_i \sim \mbox{NegBin}(\lambda, \kappa), \hspace{1cm} L(y|\lambda,\kappa) = \prod_{i=1}^N \frac{\lambda^{y_i}}{y_i!} \frac{\Gamma(\frac{1}{\kappa} + y_i)}{\Gamma(\frac{1}{\kappa}) (\frac{1}{\kappa+\lambda})^{y_i}} (1+\kappa \lambda)^{-1/\kappa} \]
+
+We follow \citet{green2009reversible} in using a Gamma$(25,10)$ prior for $\lambda$ (indicating a mean of 2.5 goals per match) and a Gamma$(1,10)$ prior for $\kappa$. The mean negative binomial prior has approximately 25\% more variation than the mean Poisson prior.
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[scale=0.45]{goalsdata.pdf}
+\end{center}
+\caption{The empirical distribution of the goals scored in each match over three seasons of English Premier League football. }
+\label{fig: goalsdata}
+\end{figure}
+
+<<echo=FALSE>>=
+load("results")
+@
+
+From Figure \ref{fig: goalsdata}, we observe that the data are right-skewed and truncated at zero. It appears feasible that the data might fit either a Poisson or a negative binomial distribution. The variance of the data ($\sigma^2=2.62$) is slightly higher than its mean ($\mu=2.52$), which may indicate minor overdispersion relative to the Poisson distribution.
+
+First we define the bijections between the $\psi$ space and the parameter set for each model. Recall that, under Barker and Link's algorithm, $\text{dim}(\psi) = \text{dim}(\theta^{(k)}, u^{(k)})$ for all $k$, and specifically $\text{dim}(\psi)= \max\{\text{dim}(\theta^{(k)})\}$. In this example, $\text{max\{dim}(\theta^{(k)})\}=\text{dim}(\theta^{(2)})=2$ so $\text{dim}(\psi)=2$, and we will require an augmenting variable for $M_1$.
+
+We choose to associate the first element of the universal parameter $\psi_1$ with $\lambda$ in both models and $\psi_2$ with $\kappa$ in model $M_2$. Under model $M_1$ there is no $\kappa$ parameter or equivalent, so we follow \citet{green2009reversible} in using an independent augmenting variable that follows a multiplicatively-centred log-normal distribution. We give $u$ a $N(0,\sigma)$ prior, then take $\psi_2 = \mu \times\exp(u)$ for some reasonable $\sigma$ and small $\mu$. If we select hyperparameters in a way that generates feasible values for $\kappa$ under $M_2$, the efficiency of our algorithm is increased. Since the value of $u$ does not effect inference, neither do our choices of $\mu$ and $\sigma$. We calculate $\psi$ by taking:
+\[ \psi =  g^{-1}_1 \left( \left[ \begin{array}{c} \lambda \\ u \end{array} \right] \right) = g^{-1}_1 \left( \left[ \begin{array}{c} \theta_1 \\ \theta_2 \end{array} \right] \right) = \left[ \begin{array}{c} \theta_1 \\ \mu \exp(\theta_2) \end{array} \right] \]
+and solving for $\theta$ gives the inverse $g_1(\psi)$:
+\[ \theta = \left[ \begin{array}{c} \lambda \\ u \end{array} \right] = g_1 \left( \left[ \begin{array}{c} \psi_1 \\ \psi_2 \end{array} \right] \right) = \left[ \begin{array}{c} \psi_1 \\ \log\left(\frac{\psi_2}{\mu}\right) \end{array} \right] \]
+
+We assume that our model-specific parameter values are in an \proglang{R} vector \code{theta} of length two:
+\[ M_1: \theta = (\lambda, u); \hspace{1.5cm} M_2: \theta = (\lambda, \kappa).\]
+Then we can define an \proglang{R} function to represent each direction of the bijection, as follows.
+<<eval=FALSE>>=
+g1 = function(psi){ c(psi[1], log(psi[2]/mu)) }
+ginv1 = function(theta){ c(theta[1], mu*exp(theta[2])) }
+@
+
+This setup allows the bijection under model $M_2$ to be the identity such that $(\lambda, \kappa)' = g_2(\psi) = \psi$ and $ \psi = g^{-1}_2(\theta) = \theta$. This is straightforward to represent in \proglang{R}:
+<<eval=FALSE>>=
+g2 = function(psi){ psi }
+ginv2 = function(theta){ theta }
+@
+
+Next we give the log-likelihoods for these models in \proglang{R}. Assuming that our data are in a vector \code{y} of length $N$, we define:
+<<eval=FALSE>>=
+L1 = function(theta){ sum(dpois(y, theta[1], log=T)) }
+L2 = function(theta){ sum(dnbinom(y, 1/theta[2], mu=theta[1], log=T)) }
+@
+
+Now we calculate the prior distributions for $\psi$. Since $\psi=g^{-1}(\theta_k)$, we can find $p(\psi|M_k)$ by applying the change of variables theorem to the prior for the parameters $p(\theta_k|M_k)$. The determinant of the Jacobian $|J_k|$ is required for this transformation. Under Model 1, $\psi_1$ is associated with $\lambda$ and $\psi_2$ is associated with $u$. So the prior for $\psi$ is
+\[ p(\psi | M_1) = p(\theta_1|M_1) \times |J_1| = p(\lambda|M_1) \times p(u|M_1) \times |J_1| = \text{Gamma}(25,10) \times \text{Normal}(0, \sigma) \times |J_1| . \]
+The \proglang{R} function we define to represent this must be $\log p(\psi | M_1)$, since the \code{rjmcmcpost} function uses log-priors along with log-likelihoods. Note that we are not required to multiply by $|J_1|$ manually, as the algorithm will automatically calculate $|J_1|$ and complete this step for us.
+<<eval=FALSE>>=
+p.prior1 = function(theta){dgamma(theta[1], lamprior[1], lamprior[2], log=T)
+                           + dnorm(theta[2], 0, sigma, log=T)}
+
+@
+
+Under Model 2, $\psi_1$ is associated with $\lambda$ and $\psi_2$ is associated with $\kappa$, so
+\[ p(\psi | M_2) = p(\theta_2|M_2) \times |J_2| = p(\lambda|M_2) \times p(\kappa|M_2) \times |J_2| = \text{Gamma}(25,10) \times \text{Gamma}(1,10) \times |J_2|. \]
+Again, we define the \proglang{R} function as the logarithm of this.
+<<eval=FALSE>>=
+p.prior2 = function(theta){dgamma(theta[1], lamprior[1], lamprior[2], log=T)+ 
+                           dgamma(theta[2], kapprior[1], kapprior[2], log=T)}
+@
+
+Finally, we need a function defined for each model which randomly draws from the posterior. Given the MCMC output from an analysis of the model, this function should select a timestep at random and return the parameter vector $\theta$ at that timestep. The \pkg{rjmcmc} package includes a function \code{getsampler} which may be of use here. It takes a matrix-like object \code{modelfit} with one column per variable and defines a sampling function of the correct form. The full function usage is:
+\[ \texttt{getsampler(modelfit, sampler.name="sampler", order="default", envir=.GlobalEnv)}. \]
+The parameters can be sorted using the \code{order} argument before they are returned. By default, they are in alphabetical order. The coda-sampling function is defined in the global environment by default, but this can be altered using the \code{envir} argument. 
+
+If the posterior is in known form, no MCMC computation is required and \code{getsampler} is of no use. Instead, a function should be defined by the user which randomly generates values from the known distribution directly.
+
+For this example, we fit our models using \proglang{JAGS} \citep{plummer2003jags} and defined functions \code{draw1} and \code{draw2} (see Appendix for the code used).
+
+We are now ready to call \code{rjmcmcpost}. In this case, we give the models equal prior probability and run for $10^4$ iterations. The output from the call is presented below.
+
+<<eval=FALSE>>=
+n = length(y)
+mu=0.015; sigma=1.5
+lamprior = c(25,10); kapprior = c(1,10)  # hyperparameters for lambda & kappa
+
+goals_post = rjmcmcpost(post.draw = list(draw1, draw2), g = list(g1, g2), 
+               ginv = list(ginv1, ginv2), likelihood = list(L1, L2), 
+               param.prior = list(p.prior1, p.prior2),
+               model.prior = c(0.5, 0.5), chainlength = 10000)
+@
+<<>>=
+goals_post
+@
+
+The prior odds are 1, since the two models had equal prior probabilities, so $\text{BF}_{21} = \frac{\Sexpr{round(goals_post$prb[2],3)}}{\Sexpr{round(goals_post$prb[1],3)}} = \Sexpr{round(goals_post$BF[2],3)}$. By convention we work with Bayes factors greater than one, so we might prefer to consider $\text{BF}_{12}=\frac{1}{\Sexpr{round(goals_post$BF[2],3)}}=\Sexpr{round(1/goals_post$BF[2],3)}$ instead. This value being greater than one indicates that Model 1 has performed better than Model 2 for this data, though by the interpretation of \citet{kass1995bayes} it is not large enough to provide substantial evidence.
+
+The estimated posterior distributions for each model are overlaid in Figure \ref{fig: goalsfit}. The small posterior estimate of $\kappa$ under Model 2 (median$=0.02$) indicates little overdispersion (as $\kappa \rightarrow 0$, the distribution reduces to a Poisson).
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[scale=0.5]{fittedplot2.pdf}
+\end{center}
+\caption{The fitted models for the English Premier League dataset, obtained using median posterior estimates from \proglang{JAGS} output. The Poisson distribution is preferred by RJMCMC with probability \Sexpr{round(goals_post$prb[1],3)}.}
+\label{fig: goalsfit}
+\end{figure}
+
+The posterior model probabilities found by \citet{green2009reversible} using traditional RJMCMC were 0.708 and 0.292, agreeing with those found here. The algorithm presented is fairly computationally efficient. The call above, with ten thousand iterations and two models, took \Sexpr{round(time1,1)} seconds on the lead author's desktop machine.
+
+
+\subsection{Example 2: Gompertz vs. von Bertalanffy}
+
+Individual growth models represent how individual organisms increase in size over time. Two popular individual growth models are the Gompertz function \citep{gompertz1825nature}
+\[ \mu_i = A \exp(-b\mbox{e}^{-c t_i}) \hspace{1cm} A>0,\hspace{0.1cm} b>0,\hspace{0.1cm} c>0 \]
+and the von Bertalanffy growth equation \citep{von1938quantitative}
+\[ \mu_i = L(1- \exp(-k(t_i+t_0)) \hspace{1cm} L>0,\hspace{0.1cm} k>0,\hspace{0.1cm} t_0>0 . \] 
+In particular, these curves are often used in the literature to model the length of fish over time. See, for example, \citet{katsanevakis2006modelling} for a multi-model comparison across several datasets based on AIC. Here, we analyse the \code{Croaker2} dataset from the \proglang{R} package \pkg{FSAdata} \citep{fsadata} which records the growth of Atlantic croaker fish. We consider only the male fish. The goal is to assess model uncertainty of male croaker growth using the \pkg{rjmcmc} package.
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[scale=0.8]{vb-g.pdf}
+\end{center}
+\caption{Some possible curves under the Gompertz and von Bertalanffy models. $A$ and $L$ are fixed at 100 for their respective models. In each plot, we also fix the value of a second parameter to ascertain the effect of the final parameter. For example, on the top left we fix $c=0.5$ to examine the effect of varying $b$.}
+\label{fig: vb-g}
+\end{figure}
+ 
+Selected realisations of these curves can be found in Figure \ref{fig: vb-g}. Under our parameterisations, each model has three parameters. The Gompertz curve is parameterised by $A$, $b$ and $c$. The value $A$ is the mean length of a fish of infinite age, i.e. the value that the curve approaches asymptotically. The displacement along the x-axis is controlled by $b$, and $c$ is the growth rate. 
+
+The von Bertalanffy curve has parameters $L$, $t_0$, and $k$. Also representing the mean length at infinity, $L$ (sometimes $L_{\infty}$ in other texts) corresponds with $A$ in the Gompertz model. The value $k$ is a growth rate coefficient, while $t_0$ is the theoretical time between size 0 and birth.
+
+In order to define likelihoods for the purposes of RJMCMC, we can treat the observations $y_{ij}$ for fish $i$ at time $j$ as normally-distributed. The mean for each model is equal to the value of the respective growth curve at time $j$ with the same standard deviation for all fish.
+\[ \mbox{Model 1: } y_{ij} \sim \mbox{Normal}(A \exp(-be^{-ct_j}), \sigma^2) \]
+\[ \mbox{Model 2: } y_{ij} \sim \mbox{Normal}(L(1- \exp(-k(t_j+t_0)), \sigma^2) \]
+
+In order to represent this in \proglang{R}, we define simple functions \code{dgomp} and \code{dbert} which calculate the height of the respective growth curves for supplied parameter values.
+<<eval=FALSE>>=
+dgomp = function(t, A, b, c){ A*exp(-b*exp(-c*t)) }
+dbert = function(t, L, t0, k){ L*(1-exp(-k*(t+t0))) }
+@
+
+Now we can easily define log-likelihoods. In each case, the parameter values are read in as a vector \code{theta} of length four, which includes the precision $\tau = \frac{1}{\sigma^2}$. Note that \code{theta} corresponds to $(A, b, c, \tau)'$ for Model 1 but $(L, t_0, k, \tau)'$ for Model 2.
+<<eval=FALSE>>=
+L1 = function(theta){sum(dnorm(y, dgomp(t, theta[1], theta[2], theta[3]),
+                               1/sqrt(theta[4]), log=TRUE))}
+L2 = function(theta){sum(dnorm(y, dbert(t, theta[1], theta[2], theta[3]),
+                               1/sqrt(theta[4]), log=TRUE))}
+@
+
+Each model-specific parameter space has four dimensions (including $\tau$). The universal parameter $\psi$ will therefore also be of length 4, with no augmenting variables required. Suppose that, under Model 2 (von Bertalanffy) we associate $(\psi_1, \psi_2, \psi_3, \psi_4)'$ with the parameter vector $(L, t_0, k, \tau)'$. Then the bijection $g_2$ is simply the identity transformation.
+<<eval=FALSE>>=
+g2 = function(psi){ psi }
+ginv2 = function(theta){ theta }
+@
+
+The parameter $A$ in the Gompertz model is exactly equivalent to $L$ in the von Bertalanffy model so we also associate $A$ with $\psi_1$ directly. Likewise, we directly relate the precision $\tau$ in both models. 
+We relate the other parameters so that the resulting growth curves are as similar as possible.  We do this by having the curves intersect at two points: $t = 0$ and $t = t^{*}$.  The choice of $t^{*}$ has no effect on the posterior distribution but does influence MCMC efficiency and can be thought of as a tuning parameter.  In practice, $t^*$ should be chosen where there is high data concentration. The bijection is
+\[ g_1 \left( \left[ \begin{array}{c} \psi_1 \\ \psi_2 \\ \psi_3 \\ \psi_4 \end{array} \right] \right) = \left[ \begin{array}{c} \psi_1 \\ -\log(1-\exp(-\psi_2\psi_3)) \\ -\log\left[\frac{\log(1-\exp(-\psi_3[\psi_2+t^*]))}{\log(1-\exp(-\psi_2\psi_3))}\right] / t^* \\ \psi_4 \end{array} \right] \]
+and solving for $\psi$ gives the inverse $g^{-1}_1(\theta)$:
+\[ g^{-1}_1 \left( \left[ \begin{array}{c} A \\ b \\ c \\ \tau \end{array} \right] \right) = g^{-1}_1 \left( \left[ \begin{array}{c} \theta_1 \\ \theta_2 \\ \theta_3 \\ \theta_4 \end{array} \right] \right) = \left[ \begin{array}{c} \theta_1 \\ \log(1 - \exp(-\theta_2)) t^* / \log\left[\frac{\exp(-\theta_2 \exp(-\theta_3 t^*))-1}{\exp(-\theta_2-1)}\right] \\ -\log\left[\frac{\exp(-\theta_2 \exp(-\theta_3 t^*))-1}{\exp(-\theta_2-1)}\right] / t^* \\ \theta_4  \end{array} \right] \]
+
+<<eval=FALSE>>=
+g1 = function(psi){ 
+  temp = exp(-psi[2]*psi[3])
+  c(psi[1], 
+    -log(1-temp), 
+    -log((log(1-temp*exp(-psi[3]*tstar))) / (log(1-temp)))/tstar, 
+    psi[4])
+}
+ginv1 = function(theta){ 
+  temp = -log((exp(-theta[2]*exp(-theta[3]*tstar))-1) 
+              / (exp(-theta[2])-1))/tstar
+  c(theta[1], 
+    -log(1-exp(-theta[2]))/temp, 
+    temp, 
+    theta[4])
+}
+@
+
+Next we define the priors for all seven parameters. We have used weakly informative prior distributions \citep{gelman2006prior} so that the overall variability of the prior predictive distribution was similar between the two models. We used the following independent half-normal prior distributions:
+\[ A, L \sim \mbox{Half-Normal}(0, 1000), \hspace{0.8cm}
+   b, t_0 \sim \mbox{Half-Normal}(0, \sqrt{20}), \hspace{0.8cm}
+   c, k \sim \mbox{Half-Normal}(0, 1). \]
+   
+Finally, we use a conjugate gamma prior for the precision $\tau = \frac{1}{\sigma^2}$:
+\[ \tau \sim \mbox{Gamma}(0.01,0.01). \]
+
+Ordinarily, we would define one prior function per model. Since our priors are the same for both models, we can instead use the same function twice. Recall that the \code{rjmcmcpost} function accepts the logarithm of the prior for $\psi$, obtained by summing the log-priors on individual parameters. 
+<<eval=FALSE>>=
+p.prior1 = function(theta){
+  sum(dnorm(theta[1:3], 0, 1/sqrt(c(1e-6, 0.05, 1)), log=T)) + 
+    dgamma(theta[4], 0.01, 0.01, log=T)
+}
+
+@
+
+We again use \proglang{JAGS} and \code{getsampler} to define functions \code{draw1} and \code{draw2} which sample from coda output; the code used can be found in the Appendix. Finally, we read in the data and complete the function call. We give the models equal prior probability once more. We choose $t^*=6$ because of the high data concentration around $t=6$.
+ 
+<<eval=FALSE>>=
+library("FSAdata")
+data("Croaker2")
+CroakerM = Croaker2[which(Croaker2$sex=="M"),]
+y = CroakerM$tl; t = CroakerM$age
+n = length(y)
+tstar = 6      # chosen for algorithmic efficiency
+
+growth_post=rjmcmcpost(post.draw = list(draw1,draw2), g = list(g1,g2),
+               ginv = list(ginv1,ginv2), likelihood = list(L1,L2),
+               param.prior = list(p.prior1,p.prior1),
+               model.prior = c(0.5,0.5), chainlength = 1e6)
+@
+
+<<echo=FALSE>>=
+growth_post
+@
+
+The results indicate that Model 2, the von Bertalanffy curve, may fit Atlantic croaker growth better than Model 1, the Gompertz function. The Bayes factor in favour of the von Bertalanffy curve is $ \text{BF}_{21}=\Sexpr{round(growth_post$BF[2], 3)}$, despite the fitted models being barely distinguishable by eye (Figure \ref{fig: growthfit}). It is perhaps unsurprising that the von Bertalanffy growth curve is preferred since \citet{fsadata} used the male croaker data to demonstrate the suitability of the von Bertalanffy function for modelling fish growth. We also note that both fitted models seem to approximate exponential growth; there is no evidence of a sigmoid shape in the Gompertz model. This may be due to the lack of information we have on young fish, with only a single observation for $t<2$.
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[scale=0.7]{fittedplot.pdf}
+\end{center}
+\caption{Fitted growth curves for male Atlantic croakers, obtained using median posterior estimates from \proglang{JAGS} output. The von Bertalanffy curve is preferred by RJMCMC with probability \Sexpr{round(growth_post$prb[2], 3)}.}
+\label{fig: growthfit}
+\end{figure}
+
+
+\section{Discussion}
+\label{sec: discuss}
+
+Bayes factors are often difficult to compute, impeding the practicality of Bayesian multimodel inference.  The \pkg{rjmcmc} package presents a relatively simple framework for accurately estimating Bayes factors and posterior model probabilities for a set of specified models. Further, the user is not required to find any derivatives due to the integrated automatic differentiation software. We believe this package makes reversible jump MCMC more accessible to practitioners.
+
+The use of Bayes factors is controversial.  There are well documentated problems with the Bayes factor when certain vague or improper priors are used \citep{berger1998criticisms, han2001markov}.  This is particularly relevant for cases where candidate models are nested (as in our first example) and care is needed.  We think Bayes factors are best used when candidate models are non-nested (as in our second example) and the variability in the prior predictive distribution is similar between our models.  
+
+As the algorithm uses coda output, most of the intensive computation is completed prior to the function call. The model fitting and model comparison steps are effectively separate. The post-processing nature of the algorithm means that we can, for instance, adjust our choice of bijections without recalculating posteriors. For models of very high dimensionality, storing codas may become an issue. Because the algorithm requires a posterior distribution for every parameter, our coda files could occupy considerable memory. If full conditional distributions are known for any of the parameters, we may be able to mitigate this problem by computing posterior draws as required, instead of storing them in a coda.
+
+The \pkg{rjmcmc} package is also not suited to variable selection contexts. For example, consider a regression problem with $k$ predictor variables where we wish to compare all possible models. Then, even excluding interactions, we must fit $2^k$ models and calculate each posterior distribution. The burden of running each model is likely to be prohibitive.  % Regardless, we suggest that variable selection is a misuse of RJMCMC, since the strength of RJMCMC lies in its ability to compare fundamentally different models.
+
+The gradients calculated from reverse-mode automatic differentiation should theoretically be more efficient for statistical purposes than the directional derivatives obtained from forward-mode, since we usually have fewer outputs than we have parameters. If \pkg{madness} was swapped out for a reverse-mode AD engine, one might expect an increase in performance for models with many parameters. However, as mentioned earlier, \pkg{madness} appears a more accessible option for \proglang{R} users than any current reverse-mode implementation.
+
+
+\singlespacing
+\subsection*{References}
+
+\bibliography{citations}
+
+\newpage
+\section*{Appendix}
+\subsection*{Defining coda-sampling functions for Example 1}
+
+We obtain coda files using the program \proglang{JAGS} \citep{plummer2003jags}, specifically the package \pkg{R2jags} which interfaces with \proglang{R}. A coda file contains the posterior distribution for the parameters, which we randomly sample from. First, we must define our models. Using \pkg{R2jags}, the models can be defined in an external text file, or in an \proglang{R} function using \proglang{JAGS} syntax. Here, we use text files \code{goalsPois.txt} and \code{goalsNB.txt}. 
+
+\begin{verbatim}
+## Inside goalsPois.txt:
+model{
+  for(i in 1:n){
+    y[i] ~ dpois(lambda)
+  }
+  lambda ~ dgamma(lamprior[1], lamprior[2])
+  kappa ~ dnorm(0, 1/(sigma^2))  # precision
+}
+
+## Inside goalsNB.txt:
+model{
+  for(i in 1:n){
+    y[i] ~ dnegbin(p, r)
+  }
+  p <- 1/(lambda*kappa + 1)
+  r <- 1/kappa
+  
+  lambda ~ dgamma(lamprior[1],lamprior[2])
+  kappa ~ dgamma(kapprior[1],kapprior[2])
+}
+\end{verbatim}
+
+Next, we perform the MCMC sampling using \pkg{R2jags}.
+
+<<eval=FALSE>>=
+library("R2jags")
+
+inits = function(){list("lambda" = rgamma(1, 1, 0.1),
+                        "kappa" = rgamma(1, 1, 0.1))}
+params = c("lambda", "kappa")
+
+jagsfit1 = jags(data = c('y', 'n', 'lamprior', 'sigma'), inits, params, 
+                n.iter=10000, model.file = "goalsPois.txt")
+
+jagsfit2 = jags(data = c('y', 'n', 'lamprior', 'kapprior'), inits, params, 
+                n.iter=10000, model.file = "goalsNB.txt")
+@
+
+Finally, we define functions which randomly select a timestep and return the values of both parameters at that timestep. Note that \proglang{JAGS} includes an estimate of the deviance as a third parameter, which these functions exclude.
+<<eval=FALSE>>=
+# Manually
+fit1 = as.mcmc(jagsfit1); C1 = as.matrix(fit1)
+draw1 = function(){rev(C1[sample(dim(C1)[1], 1, replace=T), 
+                          -which(colnames(C1) == "deviance")])}
+
+# Using getsampler function
+getsampler(jagsfit2, "draw2", order=c(3,2))   # alphabetically, lambda is 3rd parameter and kappa is 2nd
+@
+
+
+\subsection*{Defining coda-sampling functions for Example 2}
+
+\begin{verbatim}
+## In fishGomp.txt:
+model{
+  for(ti in 1:10){
+    mu[ti] <- A*exp(-b*exp(-c*ti))
+  }
+  for(i in 1:n){
+    y[i] ~ dnorm(mu[t[i]], tau)
+  }
+  A ~ dnorm(0, 0.00001)T(0,)  #
+  b ~ dnorm(0, 0.05)T(0,)     # precision = 1/variance
+  c ~ dnorm(0, 1)T(0,)        #
+  tau ~ dgamma(0.01, 0.01)
+}
+
+## In fishBert.txt:
+model{
+  for(ti in 1:10){
+    mu[ti] <- L*(1-exp(-k*(ti+t0)))
+  }
+  for(i in 1:n){
+    y[i] ~ dnorm(mu[t[i]], tau)
+  }
+  L ~ dnorm(0, 0.000001)T(0,)
+  t0 ~ dnorm(0, 0.05)T(0,)
+  k ~ dnorm(0, 1)T(0,)
+  tau ~ dgamma(0.01, 0.01)
+}
+\end{verbatim}
+
+We then run the sampler to estimate the posteriors and define the coda functions.
+<<eval=FALSE>>=
+## Gompertz model
+inits = function(){list(A = abs(rnorm(1, 350, 200)), b = abs(rnorm(1, 2, 3)), 
+                        c = abs(rnorm(1, 1, 2)), tau = rgamma(1, 0.1, 0.1))}
+params = c("A", "b", "c", "tau")
+jagsfit1 = jags(data = c('y', 't', 'n'), inits, params, n.iter=1e5, 
+                n.thin=20, model.file = "fishGomp.txt")
+
+## von Bertalanffy model
+inits = function(){list(L = abs(rnorm(1, 350, 200)), t0 = abs(rnorm(1, 2, 3)), 
+                        k = abs(rnorm(1, 1, 2)), tau = rgamma(1, 0.1, 0.1))}
+params = c("L", "t0", "k", "tau")
+jagsfit2 = jags(data = c('y', 't', 'n'), inits, params, n.iter=1e5, 
+                n.thin=20, model.file = "fishBert.txt")
+
+## Define samplers
+getsampler(jagsfit1, "draw1")
+getsampler(jagsfit2, "draw2", c(3,4,2,5))
+@
+
+
+\end{document}

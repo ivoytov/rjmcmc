@@ -1,0 +1,13 @@
+#' Binomial return rates for trout from Lake Brunner
+#' 
+#' Contains the length and sex of tagged trout, and whether they were
+#' recaptured, having returned to the lake.
+#' 
+#' @format A data frame of 1961 individuals, with three variables: \describe{ 
+#'   \item{return}{A binary response (0 = no, 1 = yes).} \item{sex}{Sex of the
+#'   trout. Binary with 0 = male, 1 = female.} \item{length}{Standardised length
+#'   of each fish (i.e. mean subtracted, divided by standard deviation).} }
+#'   
+#' @source Link, W. A. and Barker, R. J. (2009) \emph{Bayesian inference: with
+#'   ecological applications.}
+"brunner"
