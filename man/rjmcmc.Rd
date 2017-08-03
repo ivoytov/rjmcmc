@@ -13,12 +13,12 @@ required Jacobian matrices are calculated automatically, utilising the
 \code{madness} package.
 }
 \section{Functions}{
- \code{\link{rjmcmcpost}} \code{\link{adiff}}
+ \code{\link{rjmcmcpost}} \code{\link{defaultpost}} \code{\link{adiff}}
   \code{\link{getsampler}}
 }
 
-\section{Data}{
- \code{\link{brunner}} \code{\link{goals}}
+\section{Methods}{
+ \code{\link{rjmethods}}
 }
 
 \references{

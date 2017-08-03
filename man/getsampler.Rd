@@ -21,7 +21,7 @@ defined.}
 naming the parameters to extract, or a numeric vector of the indices to 
 extract.}
 
-\item{envir}{The environment in which to define the sampling function.
+\item{envir}{The environment in which to define the sampling function. 
 Defaults to the global environment.}
 }
 \value{
@@ -36,39 +36,22 @@ class \code{\link[coda]{mcmc}} and creates a function which samples from the
 posterior distribution for the parameters of the model.
 }
 \examples{
-troutmodel = function(){
- for(i in 1:n){
-   y[i] ~ dbern(p)
- }
- p <- 1 / (1 + exp(-b0))
- b0 ~ dnorm(0, 2*V)
- u1 ~ dnorm(0, 2*V)
- u2 ~ dnorm(0, 2*V)
- u3 ~ dnorm(0, 2*V)
- V ~ dgamma(3.29, 7.80)
-}
+# Generate synthetic 'MCMC output' for a model with 3 parameters. There is
+# one column per parameter, and 1000 iterations.
+coda_output = matrix(c(runif(1000,0,1), rnorm(1000,5,2), rgamma(1000,2,2)), 1000, 3)
 
-data(brunner, package="rjmcmc")
-y=brunner[,1]; s=brunner[,2]; l=brunner[,3]; n=length(brunner[,1])
-
-inits=function(){list("b0"=rnorm(0,0.01),"u1"=rnorm(0,0.01),"u2"=rnorm(0,0.01),
-                      "u3"=rnorm(0,0.01),"V"=rgamma(0.1,0.1))}
-params=c("b0","u1","u2","u3","V")
-jagsfit1=R2jags::jags(data=c("y", "n"), inits=inits,params,n.iter=1000,
-                      model.file=troutmodel)
-
-getsampler(modelfit=jagsfit1, sampler.name="posterior1")
+getsampler(modelfit=coda_output, sampler.name="posterior1")
 set.seed(100)
 posterior1()
 
 ## Alternatively
-posterior1b = getsampler(modelfit=jagsfit1)  # this successfully defines a function named
-# \\code{posterior1b} but also defines an identical function corresponding to the value 
-# of \\code{sampler.name}, i.e. \\code{"post.draw"} in this case.
+posterior1b = getsampler(modelfit=coda_output)  # this successfully defines a function named
+# posterior1b but also defines an identical function corresponding to the value 
+# of sampler.name, i.e. the default "post.draw" in this case.
 set.seed(100)
 posterior1b()
 set.seed(100)
-post.draw()
+posterior1()
 
 }
 \references{

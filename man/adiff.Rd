@@ -7,12 +7,9 @@
 adiff(func, x, ...)
 }
 \arguments{
-\item{func}{The function to be differentiated (usually user-defined). The 
-function cannot use vectorised behaviour for \code{x}. For example, 
-\code{c(x[1]/5, x[2]/5)} should be used in place of \code{x/5}.}
+\item{func}{The function to be differentiated (usually user-defined).}
 
-\item{x}{The values at which to evaluate the function \code{func}. Generally 
-a numeric vector but can also be a numeric matrix (or a single number).}
+\item{x}{The values at which to evaluate the function \code{func}.}
 
 \item{...}{Further arguments to be passed to \code{func}.}
 }

@@ -5,7 +5,7 @@
 \title{Perform Reversible-Jump MCMC Post-Processing}
 \usage{
 rjmcmcpost(post.draw, g, ginv, likelihood, param.prior, model.prior,
-  chainlength = 10000)
+  chainlength = 10000, TM.thin = chainlength/10, progress = TRUE)
 }
 \arguments{
 \item{post.draw}{A list of N functions that randomly draw from the posterior 
@@ -31,13 +31,16 @@ that this argument is not required to sum to one as it is automatically
 normalised.}
 
 \item{chainlength}{How many iterations to run the Markov chain for.}
+
+\item{TM.thin}{How regularly to calculate transition matrices as the chain progresses.}
+
+\item{progress}{A logical determining whether a progress bar is drawn.}
 }
 \value{
-Returns a list with three elements. The first element, \code{TM}, 
-  gives the transition matrix for the Markov chain, summarising how the chain
-  moved over time. The second element, \code{prb}, gives the posterior model 
-  probability for each model. The third element, \code{BF}, gives the Bayes 
-  factor in favour of each model compared to the first model.
+Returns a list-like \code{rj} object with named elements 
+  \code{result}, \code{densities}, \code{psidraws},
+  \code{progress} and \code{meta}. See \code{\link{rjmethods}} for
+  information on what each of these elements are.
 }
 \description{
 Performs Bayesian multimodel inference, estimating Bayes factors and 
@@ -67,9 +70,9 @@ p.prior2=function(p){dbeta(p[1],1,1,log=TRUE)+dbeta(p[2],17,15,log=TRUE)}
 draw1=function(){rbeta(2,y+1,n-y+1)}
 draw2=function(){c(rbeta(1,sumy+1,sumn-sumy+1),rbeta(1,17,15))}
 
-out=rjmcmcpost(post.draw=list(draw1,draw2), g=list(g1,g2), ginv=list(ginv1,ginv2), 
-               likelihood=list(L1,L2), param.prior=list(p.prior1,p.prior2), 
-               model.prior=c(0.5,0.5), chainlength=10000)
+out=rjmcmcpost(post.draw=list(draw1,draw2), g=list(g1,g2), ginv=list(ginv1,ginv2),
+               likelihood=list(L1,L2), param.prior=list(p.prior1,p.prior2),
+               model.prior=c(0.5,0.5), chainlength=1500)
 
 }
 \references{
@@ -78,5 +81,5 @@ Barker, R. J. and Link, W. A. (2013) Bayesian multimodel
   Statistician, 67(3), 150-156}.
 }
 \seealso{
-\code{\link{adiff}} \code{\link{getsampler}}
+\code{\link{adiff}} \code{\link{getsampler}} \code{\link{defaultpost}}
 }

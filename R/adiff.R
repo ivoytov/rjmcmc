@@ -11,11 +11,8 @@ to_return = function(y){
 #' it, returning the result and the Jacobian for the transformation \code{func}.
 #' \code{adiff} is used by the \code{\link{rjmcmcpost}} function.
 #' 
-#' @param func The function to be differentiated (usually user-defined). The 
-#'   function cannot use vectorised behaviour for \code{x}. For example, 
-#'   \code{c(x[1]/5, x[2]/5)} should be used in place of \code{x/5}.
-#' @param x The values at which to evaluate the function \code{func}. Generally 
-#'   a numeric vector but can also be a numeric matrix (or a single number).
+#' @param func The function to be differentiated (usually user-defined).
+#' @param x The values at which to evaluate the function \code{func}.
 #' @param ... Further arguments to be passed to \code{func}.
 #' @return A numeric vector or matrix containing the result of the function 
 #'   evaluation \code{func(x, ...)}. The \code{"gradient"} attribute of this 
@@ -39,6 +36,6 @@ to_return = function(y){
 adiff = function(func, x, ...){
   if(is.matrix(x)){xa = array(x, rev(dim(x)))} else {xa = array(x, c(length(x),1))}
   madx = madness(xa)
-  y = func(madx, ...)
+  y = suppressWarnings(func(madx, ...))
   return(to_return(y))
 }
