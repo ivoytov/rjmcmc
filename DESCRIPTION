@@ -1,7 +1,7 @@
 Package: rjmcmc
 Type: Package
 Title: Reversible-Jump MCMC Using Post-Processing
-Version: 0.3.01
+Version: 0.3.2
 Date: 2017-07-12
 Authors@R: c(person("Nick", "Gelling", email="ngelling@maths.otago.ac.nz", 
                     role=c("aut","cre")),
@@ -24,10 +24,10 @@ VignetteBuilder: knitr
 RoxygenNote: 6.0.1
 LazyData: TRUE
 NeedsCompilation: no
-Packaged: 2017-08-03 04:46:56 UTC; ngelling
+Packaged: 2017-08-10 22:07:07 UTC; ngelling
 Author: Nick Gelling [aut, cre],
   Matthew R. Schofield [aut],
   Richard J. Barker [aut]
 Maintainer: Nick Gelling <ngelling@maths.otago.ac.nz>
 Repository: CRAN
-Date/Publication: 2017-08-03 05:18:53 UTC
+Date/Publication: 2017-08-11 04:02:27 UTC

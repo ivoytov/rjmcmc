@@ -1,4 +1,4 @@
-5c12a8d1ba4aa17e989ddfee6983f29b *DESCRIPTION
+73d7c3c46460ed9ed0dedc78c638e380 *DESCRIPTION
 74572494b3ce825ce6aadebda15f2c8e *NAMESPACE
 395c854552ce595650fd02a1771100aa *R/adiff.R
 133dbe1eb8fdbdaa82eb82e4bc6b80f9 *R/class.R
@@ -9,7 +9,7 @@ c8d9590a4644e653f1b2e158f24ba0c2 *R/functionlist.R
 b9c489a005f7cf6958bb5733e420da00 *README.md
 00bbe406e837b4da8ef0aced5a2ea93d *build/vignette.rds
 311f05acce7aebef9f053a62c07dc26c *inst/doc/rjmcmcVig.R
-9ed44584cfa235a1a5b12f73705a0589 *inst/doc/rjmcmcVig.pdf
+0046389babb8fbf9ccabf8591edb9eb4 *inst/doc/rjmcmcVig.pdf
 0f334f928b53b050e59d769f26904f58 *inst/doc/rjmcmcVig.rnw
 c9e685705ef4e334ed06d6ecbe488d40 *man/adiff.Rd
 ec6bc8c84c5fa81fe9e7c8d6c4bdf58b *man/defaultpost.Rd
@@ -21,7 +21,6 @@ e6f16ab80fdf9d872ee3a887d634c241 *man/rjmethods.Rd
 2cd2a0fdd5e10049f2bcd813101d71da *vignettes/citations.bib
 222789d7caea922a6e669f02a4b66fab *vignettes/codas.RData
 502059c46c93f97030ee368c54863225 *vignettes/fittedplot.pdf
-7ec15c16d0d66790f28e90343c5434a3 *vignettes/framed.sty
 5f96e72d1316a10fb98c8b059c2b031a *vignettes/results.RData
 0f334f928b53b050e59d769f26904f58 *vignettes/rjmcmcVig.rnw
 5811a690d3f9c76fe9dc856fbf8ecd8b *vignettes/vb-g.pdf
