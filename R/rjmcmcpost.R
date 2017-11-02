@@ -25,22 +25,33 @@
 #'   that this argument is not required to sum to one as it is automatically 
 #'   normalised.
 #' @param chainlength How many iterations to run the Markov chain for.
-#' @param TM.thin How regularly to calculate transition matrices as the chain progresses.
+#' @param TM.thin How regularly to calculate transition matrices as the chain 
+#'   progresses.
+#' @param save.all A logical determining whether to save the value of the 
+#'   universal parameter at each iteration, as well as the corresponding 
+#'   likelihoods, priors and posteriors. If \code{TRUE}, the output object 
+#'   occupies significantly more memory.
 #' @param progress A logical determining whether a progress bar is drawn.
-#' @return Returns a list-like \code{rj} object with named elements 
-#'   \code{result}, \code{densities}, \code{psidraws},
-#'   \code{progress} and \code{meta}. See \code{\link{rjmethods}} for
-#'   information on what each of these elements are.
-#'      
+#' @return Returns an object of class \code{rj} (see \code{\link{rjmethods}}). 
+#'   If \code{save.all=TRUE}, the output has named elements \code{result}, 
+#'   \code{densities}, \code{psidraws}, \code{progress} and \code{meta}. If 
+#'   \code{save.all=FALSE}, the \code{densities} and \code{psidraws} elements 
+#'   are omitted.
+#'   
+#'   \code{result} contains useful point estimates, \code{progress} contains
+#'   snapshots of these estimates over time, and \code{meta} contains
+#'   information about the function call.
+#'   
 #' @references Barker, R. J. and Link, W. A. (2013) Bayesian multimodel 
 #'   inference by RJMCMC: A Gibbs sampling approach. \emph{The American 
 #'   Statistician, 67(3), 150-156}.
 #'   
-#' @seealso \code{\link{adiff}} \code{\link{getsampler}} \code{\link{defaultpost}}
+#' @seealso \code{\link{adiff}} \code{\link{getsampler}} 
+#'   \code{\link{defaultpost}}
 #'   
 #' @examples
 #' ## Comparing two binomial models -- see Barker & Link (2013) for further details.
-#'
+#' 
 #' y=c(8,16); sumy=sum(y)
 #' n=c(20,30); sumn=sum(n)
 #' 
@@ -61,15 +72,17 @@
 #' out=rjmcmcpost(post.draw=list(draw1,draw2), g=list(g1,g2), ginv=list(ginv1,ginv2),
 #'                likelihood=list(L1,L2), param.prior=list(p.prior1,p.prior2),
 #'                model.prior=c(0.5,0.5), chainlength=1500)
-#'
+#' 
 #' @export
-rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE){
+rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, save.all=FALSE, progress=TRUE){
   n.models = length(post.draw)
   nTM = chainlength/TM.thin; if(nTM<1){ stop("TM.thin must be less than chainlength.") }
   TM = rep(list(matrix(NA, n.models, n.models)), nTM)
-  store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
-  psistore = matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))
-  
+  if(save.all){ 
+    store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
+    psistore = matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))
+  }
+    
   message('Reversible-Jump MCMC Post-Processing')
   for(j in 1:n.models){
     message('Row ', j, appendLF=FALSE)
@@ -82,7 +95,7 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
     for(i in 1:chainlength){   
       cc = post.draw[[j]]()
       psi = ginverse(cc)
-      psistore[i,] = psi
+      if(save.all){ psistore[i,] = psi }
       
       for(k in 1:n.models){
         gk = g[[k]]
@@ -91,7 +104,7 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
         p = gk(psi)
         detJ = log(abs(det(attr(adiff(gk, psi), "gradient"))))
         term[i,k] = like(p) + prior(p) + detJ + log(model.prior[k])
-        store[[j]][i, k+n.models*(0:2)] = c(term[i,k], like(p), prior(p))
+        if(save.all){ store[[j]][i, k+n.models*(0:2)] = c(term[i,k], like(p), prior(p)) }
       }
       term[i,] = term[i,] - max(term[i,])
       term[i,] = exp(term[i,])/sum(exp(term[i,]))
@@ -111,8 +124,13 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
     prob[i,] = prob.us/sum(prob.us)
     BF[i,] = prob[i,]/prob[i,1] * model.prior[1]/model.prior
   }
-  return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                             "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
-                 densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
-                 meta=list(chainlength=chainlength, TM.thin=TM.thin))))
+  if(save.all){ return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
+                                           "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                               densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
+                               meta=list(chainlength=chainlength, TM.thin=TM.thin)))) 
+  } else {
+    return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
+                               "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                   progress=list(TM=TM, prb=prob), meta=list(chainlength=chainlength, TM.thin=TM.thin))))
+  }
 }

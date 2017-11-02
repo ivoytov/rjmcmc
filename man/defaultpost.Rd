@@ -5,7 +5,7 @@
 \title{Perform Post-Processing Using Default Bijections}
 \usage{
 defaultpost(coda, likelihood, param.prior, model.prior, chainlength = 10000,
-  TM.thin = chainlength/10, progress = TRUE)
+  TM.thin = chainlength/10, progress = TRUE, save.all = TRUE)
 }
 \arguments{
 \item{coda}{A list of N codas corresponding to the posterior distribution 
@@ -29,12 +29,22 @@ normalised.}
 progresses.}
 
 \item{progress}{A logical determining whether a progress bar is drawn.}
+
+\item{save.all}{A logical determining whether to save the value of the 
+universal parameter at each iteration, as well as the corresponding 
+likelihoods, priors and posteriors. If \code{TRUE}, the output object 
+occupies significantly more memory.}
 }
 \value{
-Returns a list-like \code{rj} object with named elements 
-  \code{result}, \code{densities}, \code{psidraws},
-  \code{progress} and \code{meta}. See \code{\link{rjmethods}} for
-  information on what each of these elements are.
+Returns an object of class \code{rj} (see \code{\link{rjmethods}}). 
+  If \code{save.all=TRUE}, the output has named elements \code{result}, 
+  \code{densities}, \code{psidraws}, \code{progress} and \code{meta}. If 
+  \code{save.all=FALSE}, the \code{densities} and \code{psidraws} elements 
+  are omitted.
+  
+  \code{result} contains useful point estimates, \code{progress} contains
+  snapshots of these estimates over time, and \code{meta} contains
+  information about the function call.
 }
 \description{
 Performs Bayesian multimodel inference, estimating Bayes factors and 

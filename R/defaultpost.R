@@ -23,13 +23,22 @@
 #' @param chainlength How many iterations to run the Markov chain for.
 #' @param TM.thin How regularly to calculate transition matrices as the chain 
 #'   progresses.
+#' @param save.all A logical determining whether to save the value of the 
+#'   universal parameter at each iteration, as well as the corresponding 
+#'   likelihoods, priors and posteriors. If \code{TRUE}, the output object 
+#'   occupies significantly more memory.
 #' @param progress A logical determining whether a progress bar is drawn.
-#' @return Returns a list-like \code{rj} object with named elements 
-#'   \code{result}, \code{densities}, \code{psidraws},
-#'   \code{progress} and \code{meta}. See \code{\link{rjmethods}} for
-#'   information on what each of these elements are.
-#' 
-#' @importFrom stats var  
+#' @return Returns an object of class \code{rj} (see \code{\link{rjmethods}}). 
+#'   If \code{save.all=TRUE}, the output has named elements \code{result}, 
+#'   \code{densities}, \code{psidraws}, \code{progress} and \code{meta}. If 
+#'   \code{save.all=FALSE}, the \code{densities} and \code{psidraws} elements 
+#'   are omitted.
+#'   
+#'   \code{result} contains useful point estimates, \code{progress} contains
+#'   snapshots of these estimates over time, and \code{meta} contains
+#'   information about the function call.
+#'   
+#' @importFrom stats var
 #' @references Carlin, B. P. and Chib, S. (1995) Bayesian Model Choice via 
 #'   Markov Chain Monte Carlo Methods. \emph{Journal of the Royal Statistical 
 #'   Society, Series B, 473-484}.
@@ -58,7 +67,7 @@
 #'                 param.prior=list(p.prior1,p.prior2), model.prior=c(1,1), chainlength=1000)
 #' 
 #' @export
-defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE){
+defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE, save.all=TRUE){
   n.models = length(coda)
   nTM = chainlength/TM.thin
   TM = rep(list(matrix(NA, n.models, n.models)), nTM); mvnd = rep(NA, n.models)
@@ -133,8 +142,13 @@ defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=100
     prob[i,] = prob.us/sum(prob.us)
     BF[i,] = prob[i,]/prob[i,1] * model.prior[1]/model.prior
   }
-  return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                             "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
-                 densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
-                 meta=list(chainlength=chainlength, TM.thin=TM.thin))))
+  if(save.all){ return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
+                                           "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                               densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
+                               meta=list(chainlength=chainlength, TM.thin=TM.thin)))) 
+  } else {
+    return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
+                               "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                   progress=list(TM=TM, prb=prob), meta=list(chainlength=chainlength, TM.thin=TM.thin))))
+  }
 }

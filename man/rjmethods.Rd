@@ -3,50 +3,43 @@
 \name{rjmethods}
 \alias{rjmethods}
 \alias{print.rj}
-\alias{probplot}
-\alias{densities}
-\alias{psidraws}
-\alias{detJ}
+\alias{plot.rj}
+\alias{summary.rj}
 \title{Methods for the rj Class}
 \usage{
 \method{print}{rj}(x, ...)
 
-probplot(rjobj, legend = TRUE, col = "maroon4", ylim = c(0, 1), lwd = 2,
-  lty = c(1, 1, 1))
+\method{plot}{rj}(x, legend = TRUE, col = "maroon4", ylim = c(0, 1),
+  lwd = 2, lty = c(1, 1, 1), ...)
 
-densities(rjobj)
-
-psidraws(rjobj)
-
-detJ(rjobj)
+\method{summary}{rj}(object, quantiles = c(0.025, 0.25, 0.5, 0.75, 0.975),
+  ...)
 }
 \arguments{
-\item{...}{Any further arguments to \code{print}.}
+\item{x, object}{An object of class \code{rj}.}
 
-\item{rjobj, x}{An object of class \code{rj}.}
+\item{...}{Further arguments to the generic method.}
 
-\item{legend, col, ylim, lwd, lty}{Optional graphical parameters to the \code{probplot} function.}
+\item{legend, col, ylim, lwd, lty}{Some useful graphical arguments to the generic
+\code{plot} method.}
+
+\item{quantiles}{The desired density quantiles for \code{summary} to find.}
 }
 \description{
 An object of class \code{rj} is returned from the functions 
-\code{\link{rjmcmcpost}} or \code{\link{defaultpost}}. The following methods
+\code{\link{rjmcmcpost}} or \code{\link{defaultpost}}. The following methods 
 can be applied to an object of this class. See Details for more information.
 }
 \details{
-The \code{print} method prints the point estimates obtained from the
+The \code{print} method prints the point estimates obtained from the 
 algorithm, including the transition matrix, posterior model probabilities and
 Bayes factors.
 
-The \code{probplot} function plots how the estimates of the posterior probabilities
+The \code{plot} method plots how the estimates of the posterior probabilities
 changed as the algorithm progressed, illustrating convergence.
 
-The \code{densities} function returns the likelihood, prior and posterior
-density for each model at each iteration of the algorithm in a list of length K, where each element is a 3K x
-\code{chainlength} matrix.
-
-The \code{psidraws} function returns the universal
-parameter vector psi at each iteration of the algorithm in a matrix.
-
-The \code{detJ} function returns the logarithm of the determinant of the Jacobian
-matrix for each model, in a vector of length K.
+The \code{summary} method returns quantiles of the posterior densities for
+each model (as well as likelihoods and prior densities). The point estimates
+as in \code{print} are also returned. Note that this requires \code{save.all}
+must be \code{TRUE} in the \code{rjmcmcpost} call.
 }

@@ -5,7 +5,8 @@
 \title{Perform Reversible-Jump MCMC Post-Processing}
 \usage{
 rjmcmcpost(post.draw, g, ginv, likelihood, param.prior, model.prior,
-  chainlength = 10000, TM.thin = chainlength/10, progress = TRUE)
+  chainlength = 10000, TM.thin = chainlength/10, save.all = FALSE,
+  progress = TRUE)
 }
 \arguments{
 \item{post.draw}{A list of N functions that randomly draw from the posterior 
@@ -32,15 +33,26 @@ normalised.}
 
 \item{chainlength}{How many iterations to run the Markov chain for.}
 
-\item{TM.thin}{How regularly to calculate transition matrices as the chain progresses.}
+\item{TM.thin}{How regularly to calculate transition matrices as the chain 
+progresses.}
+
+\item{save.all}{A logical determining whether to save the value of the 
+universal parameter at each iteration, as well as the corresponding 
+likelihoods, priors and posteriors. If \code{TRUE}, the output object 
+occupies significantly more memory.}
 
 \item{progress}{A logical determining whether a progress bar is drawn.}
 }
 \value{
-Returns a list-like \code{rj} object with named elements 
-  \code{result}, \code{densities}, \code{psidraws},
-  \code{progress} and \code{meta}. See \code{\link{rjmethods}} for
-  information on what each of these elements are.
+Returns an object of class \code{rj} (see \code{\link{rjmethods}}). 
+  If \code{save.all=TRUE}, the output has named elements \code{result}, 
+  \code{densities}, \code{psidraws}, \code{progress} and \code{meta}. If 
+  \code{save.all=FALSE}, the \code{densities} and \code{psidraws} elements 
+  are omitted.
+  
+  \code{result} contains useful point estimates, \code{progress} contains
+  snapshots of these estimates over time, and \code{meta} contains
+  information about the function call.
 }
 \description{
 Performs Bayesian multimodel inference, estimating Bayes factors and 
@@ -81,5 +93,6 @@ Barker, R. J. and Link, W. A. (2013) Bayesian multimodel
   Statistician, 67(3), 150-156}.
 }
 \seealso{
-\code{\link{adiff}} \code{\link{getsampler}} \code{\link{defaultpost}}
+\code{\link{adiff}} \code{\link{getsampler}} 
+  \code{\link{defaultpost}}
 }

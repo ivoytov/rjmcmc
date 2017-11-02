@@ -10,10 +10,10 @@ dgomp = function(t, A, b, c){ A*exp(-b*exp(-c*t)) }
 dbert = function(t, L, t0, k){ L*(1-exp(-k*(t+t0))) }
 
 ## ------------------------------------------------------------------------
-L1 = function(theta){ sum(dnorm(y, dgomp(t, theta[1], theta[2], theta[3]), 
-                                1/sqrt(theta[4]), log=TRUE))}
+L1 = function(theta){ sum(dnorm(y, dgomp(t, theta[1], theta[2], theta[3]),
+                               1/sqrt(theta[4]), log=TRUE)) }
 L2 = function(theta){ sum(dnorm(y, dbert(t, theta[1], theta[2], theta[3]),
-                                1/sqrt(theta[4]), log=TRUE))}
+                               1/sqrt(theta[4]), log=TRUE)) }
 
 ## ------------------------------------------------------------------------
 g2 = function(psi){ return(theta=psi) }
@@ -39,7 +39,8 @@ ginv1 = function(theta){
 ## ------------------------------------------------------------------------
 p.prior = function(theta){
   sum(dnorm(theta[1:3], 0, 1/sqrt(c(1e-6, 0.05, 1)), log=T)) +
-  dgamma(theta[4], 0.01, 0.01, log=T)}
+  dgamma(theta[4], 0.01, 0.01, log=T)
+}
 
 ## ----echo=FALSE----------------------------------------------------------
 load("codas.RData")
@@ -48,7 +49,7 @@ set.seed(337)
 ## ----message=FALSE-------------------------------------------------------
 library("rjmcmc")
 getsampler(C1, "draw1")
-getsampler(C2, "draw2", order=c(2,3,1,4))
+getsampler(C2, "draw2", order=c(2, 3, 1, 4))
 
 ## ----message=FALSE-------------------------------------------------------
 data("Croaker2", package="FSAdata")
@@ -59,7 +60,8 @@ tstar = 6
 growth = rjmcmcpost(post.draw = list(draw1,draw2), g = list(g1,g2),
                ginv = list(ginv1,ginv2), likelihood = list(L1,L2),
                param.prior = list(p.prior,p.prior),
-               model.prior = c(0.7,0.3), chainlength = 5000, progress = FALSE)
+               model.prior = c(0.7,0.3), chainlength = 5000,
+               progress = FALSE)
 growth$result
 
 ## ----echo=FALSE----------------------------------------------------------
@@ -69,8 +71,8 @@ load("results.RData")
 growthDef = defaultpost(coda = list(C1, C2[,c(2,3,1,4)]),
                         likelihood = list(L1, L2),
                         param.prior = list(p.prior, p.prior),
-                        model.prior = c(0.5,0.5), chainlength = 5000,
-                        progress = FALSE)
+                        model.prior = c(0.5,0.5), 
+                        chainlength = 5000, progress = FALSE)
 growthDef$result
 
 ## ------------------------------------------------------------------------
@@ -138,29 +140,69 @@ getsampler(coda3, "draw3")
 
 ## ----message=FALSE-------------------------------------------------------
 seeds = rjmcmcpost(post.draw = list(draw1, draw2, draw3),
-                   likelihood = list(L1, L2, L3),
-                   g = list(g1, g2, g3), ginv = list(ginv1, ginv2, ginv3),
+                   likelihood = list(L1, L2, L3), 
+                   g = list(g1, g2, g3), 
+                   ginv = list(ginv1, ginv2, ginv3),
                    param.prior = list(prior1, prior2, prior3),
-                   model.prior = c(0.011, 0.028, 0.961), chainlength = 5000,
-                   progress=FALSE)
+                   model.prior = c(0.011, 0.028, 0.961), 
+                   chainlength = 5000, progress = FALSE)
 seeds$result
+
+## ----eval=FALSE----------------------------------------------------------
+#  cat("model{
+#      for(ti in 1:10){
+#        mu[ti] <- A*exp(-b*exp(-c*ti))
+#      }
+#      for(i in 1:n){
+#        y[i] ~ dnorm(mu[t[i]], tau)
+#      }
+#      A ~ dnorm(0, 0.00001)T(0,)  #
+#      b ~ dnorm(0, 0.05)T(0,)     # precision = 1/variance
+#      c ~ dnorm(0, 1)T(0,)        #
+#      tau ~ dgamma(0.01, 0.01)
+#    }", file="fishGomp.txt")
+#  
+#  cat("model{
+#      for(ti in 1:10){
+#        mu[ti] <- L*(1-exp(-k*(ti+t0)))
+#      }
+#      for(i in 1:n){
+#        y[i] ~ dnorm(mu[t[i]], tau)
+#      }
+#      L ~ dnorm(0, 0.000001)T(0,)
+#      t0 ~ dnorm(0, 0.05)T(0,)
+#      k ~ dnorm(0, 1)T(0,)
+#      tau ~ dgamma(0.01, 0.01)
+#    }", file="fishBert.txt")
 
 ## ----eval=FALSE----------------------------------------------------------
 #  ## Gompertz model
 #  inits = function(){list(A = abs(rnorm(1, 350, 200)), b = abs(rnorm(1, 2, 3)),
 #                          c = abs(rnorm(1, 1, 2)), tau = rgamma(1, 0.1, 0.1))}
-#  jagsfit1 = jags(data = c('y', 't', 'n'), inits,
-#                  params = c("A", "b", "c", "tau"), n.iter=1e5, n.thin=20,
-#                  model.file = "fishGomp.txt")
+#  params = c("A", "b", "c", "tau")
+#  jagsfit1 = jags(data = c('y', 't', 'n'), inits, params, n.iter=1e5,
+#                  n.thin=20, model.file = "fishGomp.txt")
 #  C1 = as.matrix(as.mcmc(jagsfit1))[,-4]
 #  
 #  ## von Bertalanffy model
 #  inits = function(){list(L = abs(rnorm(1, 350, 200)), t0 = abs(rnorm(1, 2, 3)),
 #                          k = abs(rnorm(1, 1, 2)), tau = rgamma(1, 0.1, 0.1))}
-#  jagsfit2 = jags(data = c('y', 't', 'n'), inits,
-#                  params = c("L", "t0", "k", "tau"), n.iter=1e5, n.thin=20,
-#                  model.file = "fishBert.txt")
-#  C2 = as.matrix(as.mcmc(jagsfit2))[,-1]
+#  params = c("L", "t0", "k", "tau")
+#  jagsfit2 = jags(data = c('y', 't', 'n'), inits, params, n.iter=1e5,
+#                  n.thin=20, model.file = "fishBert.txt")
+#  C2 = as.matrix(as.mcmc(jagsfit1))[,-1]
+
+## ----eval=FALSE----------------------------------------------------------
+#  cat("model{
+#      for(i in 1:21) {
+#        X[i] ~ dbin(p[i],N[i])
+#        logit(p[i]) <- beta[f[i]]
+#      }
+#      for(j in 1:4){
+#        beta[j] ~ dnorm(0, V)  # precision, not variance
+#      }
+#      V ~ dgamma(3.29, 7.80)
+#    }", file="model1.txt")
 
 ## ----eval=FALSE----------------------------------------------------------
 #  ## Fit Model 1
