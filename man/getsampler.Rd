@@ -31,7 +31,7 @@ A function is defined in \code{envir} which randomly samples from the
   suitable for passing to the \code{rjmcmcpost} function.
 }
 \description{
-A utility function which takes a matrix-like object that can be coerced to 
+A utility function which accepts a matrix that can be coerced to 
 class \code{\link[coda]{mcmc}} and creates a function which samples from the 
 posterior distribution for the parameters of the model.
 }

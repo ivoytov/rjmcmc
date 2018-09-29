@@ -1,8 +1,8 @@
 Package: rjmcmc
 Type: Package
 Title: Reversible-Jump MCMC Using Post-Processing
-Version: 0.4.1
-Date: 2018-06-27
+Version: 0.4.2
+Date: 2018-9-29
 Authors@R: c(person("Nick", "Gelling", email="nick_gelling@hotmail.com", 
                     role=c("aut","cre")),
              person(c("Matthew", "R."), "Schofield", 
@@ -21,13 +21,13 @@ Depends: madness, R (>= 3.2.0)
 Imports: utils, coda, mvtnorm
 Suggests: knitr, FSAdata
 VignetteBuilder: knitr
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0
 LazyData: TRUE
 NeedsCompilation: no
-Packaged: 2018-06-27 08:51:22 UTC; rachaelyoung
+Packaged: 2018-09-29 01:11:25 UTC; rachaelyoung
 Author: Nick Gelling [aut, cre],
   Matthew R. Schofield [aut],
   Richard J. Barker [aut]
 Maintainer: Nick Gelling <nick_gelling@hotmail.com>
 Repository: CRAN
-Date/Publication: 2018-06-27 09:33:37 UTC
+Date/Publication: 2018-09-29 05:00:03 UTC

@@ -12,8 +12,8 @@
 \method{plot}{rj}(x, legend = TRUE, col = "maroon4", ylim = c(0, 1),
   lwd = 2, lty = c(1, 1, 1), ...)
 
-\method{summary}{rj}(object, quantiles = c(0.025, 0.25, 0.5, 0.75, 0.975),
-  ...)
+\method{summary}{rj}(object, quantiles = c(0.025, 0.25, 0.5, 0.75,
+  0.975), ...)
 }
 \arguments{
 \item{x, object}{An object of class \code{rj}.}

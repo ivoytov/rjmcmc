@@ -4,8 +4,9 @@
 \alias{defaultpost}
 \title{Perform Post-Processing Using Default Bijections}
 \usage{
-defaultpost(coda, likelihood, param.prior, model.prior, chainlength = 10000,
-  TM.thin = chainlength/10, progress = TRUE, save.all = TRUE)
+defaultpost(coda, likelihood, param.prior, model.prior,
+  chainlength = 10000, TM.thin = chainlength/10, progress = TRUE,
+  save.all = TRUE)
 }
 \arguments{
 \item{coda}{A list of N codas corresponding to the posterior distribution 

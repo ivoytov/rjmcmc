@@ -1,6 +1,6 @@
 #' Define Function To Sample From Coda Output
 #' 
-#' A utility function which takes a matrix-like object that can be coerced to 
+#' A utility function which accepts a matrix that can be coerced to 
 #' class \code{\link[coda]{mcmc}} and creates a function which samples from the 
 #' posterior distribution for the parameters of the model.
 #' 
@@ -47,9 +47,12 @@
 #' 
 #' @export
 getsampler = function(modelfit, sampler.name="post.draw", order="default", envir=.GlobalEnv){
-  C = as.matrix(coda::as.mcmc(modelfit))
-  assign(sampler.name, function(){
-    temp = C[sample(dim(C)[1],1),]
-    if(any(order=="default")){return(temp)}
-    else return(temp[order])}, envir=envir)
+  if(any(order == "default")){
+    ord = 1:dim(modelfit)[2]
+  } else {
+    ord = order
+  }
+  tmp = paste("function() {\n temp = ",deparse(substitute(modelfit)),"[sample(dim(",
+              deparse(substitute(modelfit)),")[1],1),c(",paste(ord,collapse=","),")]\n }",sep="")
+  assign(sampler.name,eval(parse(text = tmp)), envir = envir)
 }
