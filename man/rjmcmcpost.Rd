@@ -11,8 +11,8 @@ rjmcmcpost(post.draw, g, ginv, likelihood, param.prior, model.prior,
 \arguments{
 \item{post.draw}{A list of N functions that randomly draw from the posterior 
 distribution under each model. Generally these functions sample from the 
-coda output of a model fitted using MCMC. Functions that draw from the 
-posterior in known form are also allowed.}
+output of a model fitted using MCMC. Functions that generate an exact 
+draw from the posterior are also allowed.}
 
 \item{g}{A list of N functions specifying the bijections from the universal 
 parameter \code{psi} to each model-specific parameter set.}
@@ -24,8 +24,8 @@ transformations of \code{g}.}
 \item{likelihood}{A list of N functions specifying the log-likelihood 
 functions for the data under each model.}
 
-\item{param.prior}{A list of N functions specifying the prior distributions 
-for each model-specific parameter vector.}
+\item{param.prior}{A list of N functions specifying the log-prior 
+distributions for each model-specific parameter vector.}
 
 \item{model.prior}{A numeric vector of the prior model probabilities. Note 
 that this argument is not required to sum to one as it is automatically 

@@ -10,8 +10,8 @@
 #' 
 #' @param post.draw A list of N functions that randomly draw from the posterior 
 #'   distribution under each model. Generally these functions sample from the 
-#'   coda output of a model fitted using MCMC. Functions that draw from the 
-#'   posterior in known form are also allowed.
+#'   output of a model fitted using MCMC. Functions that generate an exact 
+#'   draw from the posterior are also allowed.
 #' @param g A list of N functions specifying the bijections from the universal 
 #'   parameter \code{psi} to each model-specific parameter set.
 #' @param ginv A list of N functions specifying the bijections from each 
@@ -19,8 +19,8 @@
 #'   transformations of \code{g}.
 #' @param likelihood A list of N functions specifying the log-likelihood 
 #'   functions for the data under each model.
-#' @param param.prior A list of N functions specifying the prior distributions 
-#'   for each model-specific parameter vector.
+#' @param param.prior A list of N functions specifying the log-prior 
+#'   distributions for each model-specific parameter vector.
 #' @param model.prior A numeric vector of the prior model probabilities. Note 
 #'   that this argument is not required to sum to one as it is automatically 
 #'   normalised.
@@ -80,7 +80,7 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
   TM = rep(list(matrix(NA, n.models, n.models)), nTM)
   if(save.all){ 
     store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
-    psistore = matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))
+    psistore = rep(list(matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))), n.models)
   }
     
   message('Reversible-Jump MCMC Post-Processing')
@@ -95,7 +95,7 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
     for(i in 1:chainlength){   
       cc = post.draw[[j]]()
       psi = ginverse(cc)
-      if(save.all){ psistore[i,] = psi }
+      if(save.all){ psistore[[j]][i,] = psi }
       
       for(k in 1:n.models){
         gk = g[[k]]

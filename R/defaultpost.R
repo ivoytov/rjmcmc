@@ -9,8 +9,8 @@
 #' multivariate normal pseudo-prior. Transformation Jacobians are computed using
 #' automatic differentiation so do not need to be specified.
 #' 
-#' @param coda A list of N codas corresponding to the posterior distribution 
-#'   under each model. Generally this coda output will be found using MCMC. Note
+#' @param posterior A list of N matrices containing the posterior distributions 
+#'   under each model. Generally this will be obtained from MCMC output. Note
 #'   that each parameter should be real-valued so some parameters may need to be
 #'   transformed, using logarithms for example.
 #' @param likelihood A list of N functions specifying the log-likelihood 
@@ -63,22 +63,22 @@
 #' coda1=matrix(rbeta(2000,y+1,n-y+1), 1000, 2, byrow=TRUE)  ## full conditional posterior
 #' coda2=matrix(c(rbeta(1000,sumy+1,sumn-sumy+1),rbeta(1000,17,15)), 1000, 2)
 #' 
-#' out=defaultpost(coda=list(coda1,coda2), likelihood=list(L1,L2), 
+#' out=defaultpost(posterior=list(coda1,coda2), likelihood=list(L1,L2), 
 #'                 param.prior=list(p.prior1,p.prior2), model.prior=c(1,1), chainlength=1000)
 #' 
 #' @export
-defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE, save.all=TRUE){
-  n.models = length(coda)
+defaultpost=function(posterior, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE, save.all=TRUE){
+  n.models = length(posterior)
   nTM = chainlength/TM.thin
   TM = rep(list(matrix(NA, n.models, n.models)), nTM); mvnd = rep(NA, n.models)
   
   n.par = rep(NA, n.models)
   for(j in 1:n.models){
-    coda[[j]] = as.matrix(coda[[j]])
-    if(any(colnames(coda[[j]])=="deviance")){ 
-      coda[[j]] = coda[[j]][, -which(colnames(coda[[j]])=="deviance")]
+    posterior[[j]] = as.matrix(posterior[[j]])
+    if(any(colnames(posterior[[j]])=="deviance")){ 
+      posterior[[j]] = posterior[[j]][, -which(colnames(posterior[[j]])=="deviance")]
     }
-    n.par[j] = ncol(coda[[j]])
+    n.par[j] = ncol(posterior[[j]])
   }
   dim.psi = sum(n.par)
   
@@ -86,13 +86,13 @@ defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=100
   modlab = c(); covar = list()
   for(j in 1:n.models){
     modlab = c(modlab, rep(j, n.par[j]))
-    post = coda[[j]]
+    post = posterior[[j]]
     p.bar[which(modlab==j)] = apply(post, 2, mean)
     covar[[j]] = var(post)  # covariance matrix for each model
   }
   u.prior = cbind(modlab, p.bar)
   
-  psistore = matrix(NA, chainlength, dim.psi)
+  psistore = rep(list(matrix(NA, chainlength, dim.psi)), n.models)
   store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
   message('Post-Processing Based on Normal Pseudo-Prior')
   for(j in 1:n.models){
@@ -104,13 +104,13 @@ defaultpost=function(coda, likelihood, param.prior, model.prior, chainlength=100
     is = which(modlab==j)
     
     for(i in 1:chainlength){   
-      psi[is] = coda[[j]][sample(dim(coda[[j]])[1], 1),]
+      psi[is] = posterior[[j]][sample(dim(posterior[[j]])[1], 1),]
       for(m in 1:n.models){
         if(m==j){ next }
         mis = which(modlab==m)
         psi[mis] = mvtnorm::rmvnorm(1, u.prior[mis,2], covar[[m]])
       }
-      psistore[i,] = psi
+      psistore[[j]][i,] = psi
       
       for(k in 1:n.models){
         ind = which(modlab==k)

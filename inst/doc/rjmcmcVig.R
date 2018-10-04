@@ -68,7 +68,7 @@ growth$result
 load("results.RData")
 
 ## ----message=FALSE-------------------------------------------------------
-growthDef = defaultpost(coda = list(C1, C2[,c(2,3,1,4)]),
+growthDef = defaultpost(posterior = list(C1, C2[,c(2,3,1,4)]),
                         likelihood = list(L1, L2),
                         param.prior = list(p.prior, p.prior),
                         model.prior = c(0.5,0.5), 

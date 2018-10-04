@@ -4,13 +4,13 @@
 \alias{defaultpost}
 \title{Perform Post-Processing Using Default Bijections}
 \usage{
-defaultpost(coda, likelihood, param.prior, model.prior,
+defaultpost(posterior, likelihood, param.prior, model.prior,
   chainlength = 10000, TM.thin = chainlength/10, progress = TRUE,
   save.all = TRUE)
 }
 \arguments{
-\item{coda}{A list of N codas corresponding to the posterior distribution 
-under each model. Generally this coda output will be found using MCMC. Note
+\item{posterior}{A list of N matrices containing the posterior distributions 
+under each model. Generally this will be obtained from MCMC output. Note
 that each parameter should be real-valued so some parameters may need to be
 transformed, using logarithms for example.}
 
@@ -71,7 +71,7 @@ p.prior2=function(p){dbeta(p[1],1,1,log=TRUE)+dbeta(p[2],17,15,log=TRUE)}
 coda1=matrix(rbeta(2000,y+1,n-y+1), 1000, 2, byrow=TRUE)  ## full conditional posterior
 coda2=matrix(c(rbeta(1000,sumy+1,sumn-sumy+1),rbeta(1000,17,15)), 1000, 2)
 
-out=defaultpost(coda=list(coda1,coda2), likelihood=list(L1,L2), 
+out=defaultpost(posterior=list(coda1,coda2), likelihood=list(L1,L2), 
                 param.prior=list(p.prior1,p.prior2), model.prior=c(1,1), chainlength=1000)
 
 }

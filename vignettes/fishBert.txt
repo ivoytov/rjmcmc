@@ -1,0 +1,12 @@
+model{
+    for(ti in 1:10){
+      mu[ti] <- L*(1-exp(-k*(ti+t0)))
+    }
+    for(i in 1:n){
+      y[i] ~ dnorm(mu[t[i]], tau)
+    }
+    L ~ dnorm(0, 0.000001)T(0,)
+    t0 ~ dnorm(0, 0.05)T(0,)
+    k ~ dnorm(0, 1)T(0,)
+    tau ~ dgamma(0.01, 0.01)
+  }
