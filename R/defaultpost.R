@@ -60,17 +60,17 @@
 #' p.prior1=function(p){sum(dbeta(p,1,1,log=TRUE))}
 #' p.prior2=function(p){dbeta(p[1],1,1,log=TRUE)+dbeta(p[2],17,15,log=TRUE)}
 #' 
-#' coda1=matrix(rbeta(2000,y+1,n-y+1), 1000, 2, byrow=TRUE)  ## full conditional posterior
-#' coda2=matrix(c(rbeta(1000,sumy+1,sumn-sumy+1),rbeta(1000,17,15)), 1000, 2)
+#' draw1=matrix(rbeta(2000,y+1,n-y+1), 1000, 2, byrow=TRUE)  ## full conditional posterior
+#' draw2=matrix(c(rbeta(1000,sumy+1,sumn-sumy+1),rbeta(1000,17,15)), 1000, 2)
 #' 
-#' out=defaultpost(posterior=list(coda1,coda2), likelihood=list(L1,L2), 
+#' out=defaultpost(posterior=list(draw1,draw2), likelihood=list(L1,L2), 
 #'                 param.prior=list(p.prior1,p.prior2), model.prior=c(1,1), chainlength=1000)
 #' 
 #' @export
 defaultpost=function(posterior, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, progress=TRUE, save.all=TRUE){
   n.models = length(posterior)
   nTM = chainlength/TM.thin
-  TM = rep(list(matrix(NA, n.models, n.models)), nTM); mvnd = rep(NA, n.models)
+  TM = BF = rep(list(matrix(NA, n.models, n.models)), nTM); mvnd = rep(NA, n.models)
   
   n.par = rep(NA, n.models)
   for(j in 1:n.models){
@@ -135,20 +135,22 @@ defaultpost=function(posterior, likelihood, param.prior, model.prior, chainlengt
     if(progress){ close(pb) }
   }
   
-  prob = BF = matrix(NA,nTM,n.models)
+  prob = matrix(NA,nTM,n.models)
   for(i in 1:nTM){
     ev = eigen(t(TM[[i]]))
     prob.us = ev$vector[,which(abs(ev$values-1) < 1e-8)]
     prob[i,] = prob.us/sum(prob.us)
-    BF[i,] = prob[i,]/prob[i,1] * model.prior[1]/model.prior
+    for(j in 1:n.models){
+      BF[[i]][,j] = prob[i,]/prob[i,j] * model.prior[j]/model.prior
+    }
   }
   if(save.all){ return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                                           "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                                           "Bayes Factors" = BF[[nTM]], "Second Eigenvalue" = ev$value[2]), 
                                densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
                                meta=list(chainlength=chainlength, TM.thin=TM.thin)))) 
   } else {
     return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                               "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                               "Bayes Factors" = BF[[nTM]], "Second Eigenvalue" = ev$value[2]), 
                    progress=list(TM=TM, prb=prob), meta=list(chainlength=chainlength, TM.thin=TM.thin))))
   }
 }

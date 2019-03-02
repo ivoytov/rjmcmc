@@ -11,8 +11,7 @@ rjmcmcpost(post.draw, g, ginv, likelihood, param.prior, model.prior,
 \arguments{
 \item{post.draw}{A list of N functions that randomly draw from the posterior 
 distribution under each model. Generally these functions sample from the 
-output of a model fitted using MCMC. Functions that generate an exact 
-draw from the posterior are also allowed.}
+output of a model fitted using MCMC.}
 
 \item{g}{A list of N functions specifying the bijections from the universal 
 parameter \code{psi} to each model-specific parameter set.}

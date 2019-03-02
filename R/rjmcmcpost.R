@@ -10,8 +10,7 @@
 #' 
 #' @param post.draw A list of N functions that randomly draw from the posterior 
 #'   distribution under each model. Generally these functions sample from the 
-#'   output of a model fitted using MCMC. Functions that generate an exact 
-#'   draw from the posterior are also allowed.
+#'   output of a model fitted using MCMC.
 #' @param g A list of N functions specifying the bijections from the universal 
 #'   parameter \code{psi} to each model-specific parameter set.
 #' @param ginv A list of N functions specifying the bijections from each 
@@ -77,7 +76,7 @@
 rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, chainlength=10000, TM.thin=chainlength/10, save.all=FALSE, progress=TRUE){
   n.models = length(post.draw)
   nTM = chainlength/TM.thin; if(nTM<1){ stop("TM.thin must be less than chainlength.") }
-  TM = rep(list(matrix(NA, n.models, n.models)), nTM)
+  TM = BF = rep(list(matrix(NA, n.models, n.models)), nTM)
   if(save.all){ 
     store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
     psistore = rep(list(matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))), n.models)
@@ -117,20 +116,22 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
     if(progress){ close(pb) }
   }
   
-  prob = BF = matrix(NA,nTM,n.models)
+  prob = matrix(NA,nTM,n.models)
   for(i in 1:nTM){
     ev = eigen(t(TM[[i]]))
     prob.us = ev$vector[,which(abs(ev$values-1) < 1e-8)]
     prob[i,] = prob.us/sum(prob.us)
-    BF[i,] = prob[i,]/prob[i,1] * model.prior[1]/model.prior
+    for(j in 1:n.models){
+      BF[[i]][,j] = prob[i,]/prob[i,j] * model.prior[j]/model.prior
+    }
   }
   if(save.all){ return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                                           "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                                           "Bayes Factors" = BF[[nTM]], "Second Eigenvalue" = ev$value[2]), 
                                densities = store, psidraws = psistore, progress=list(TM=TM, prb=prob), 
                                meta=list(chainlength=chainlength, TM.thin=TM.thin)))) 
   } else {
     return(rj(list(result=list("Transition Matrix" = TM[[nTM]], "Posterior Model Probabilities"=prob[nTM,], 
-                               "Bayes Factors" = BF[nTM,], "Second Eigenvalue" = ev$value[2]), 
+                               "Bayes Factors" = BF[[nTM]], "Second Eigenvalue" = ev$value[2]), 
                    progress=list(TM=TM, prb=prob), meta=list(chainlength=chainlength, TM.thin=TM.thin))))
   }
 }
