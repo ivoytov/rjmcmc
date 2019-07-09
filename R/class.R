@@ -15,7 +15,7 @@
 #' The \code{summary} method returns quantiles of the posterior densities for
 #' each model (as well as likelihoods and prior densities). The point estimates
 #' as in \code{print} are also returned. Note that this requires \code{save.all}
-#' must be \code{TRUE} in the \code{rjmcmcpost} call.
+#' to be \code{TRUE} in the \code{rjmcmcpost} call.
 #' 
 #' @param x,object An object of class \code{rj}.
 #' @param ... Further arguments to the generic method.
