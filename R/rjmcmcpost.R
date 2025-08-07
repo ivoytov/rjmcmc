@@ -79,7 +79,12 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
   TM = BF = rep(list(matrix(NA, n.models, n.models)), nTM)
   if(save.all){ 
     store = rep(list(matrix(NA, chainlength, n.models*3, dimnames=list(NULL, c(paste0("Posterior M", 1:n.models), paste0("Likelihood M", 1:n.models), paste0("Prior M", 1:n.models))))), n.models)
-    psistore = rep(list(matrix(NA, chainlength, length(ginv[[1]](post.draw[[1]]())))), n.models)
+    psistore = vector("list", n.models)
+    for(j in 1:n.models) {
+      # Get length of parameter vector for model j:
+      param_length = length(ginv[[j]](post.draw[[j]]()))
+      psistore[[j]] = matrix(NA, chainlength, param_length)
+    }
   }
     
   message('Reversible-Jump MCMC Post-Processing')
@@ -94,7 +99,9 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
     for(i in 1:chainlength){   
       cc = post.draw[[j]]()
       psi = ginverse(cc)
-      if(save.all){ psistore[[j]][i,] = psi }
+      if(save.all){ 
+        psistore[[j]][i,] = psi 
+      }
       
       for(k in 1:n.models){
         gk = g[[k]]
@@ -119,8 +126,24 @@ rjmcmcpost=function(post.draw, g, ginv, likelihood, param.prior, model.prior, ch
   prob = matrix(NA,nTM,n.models)
   for(i in 1:nTM){
     ev = eigen(t(TM[[i]]))
-    prob.us = ev$vector[,which(abs(ev$values-1) < 1e-8)]
-    prob[i,] = prob.us/sum(prob.us)
+    
+    index_1 = which(abs(ev$values - 1) < 1e-8)
+    if(length(index_1)==0)
+      stop(sprintf("No eigenvalue at 1 found for TM at iteration %d",i))
+    # Just take the first one if there are multiples
+    prob.us = Re(ev$vectors[, index_1[1]])
+
+    if(any(is.complex(prob.us))){
+      warning("Complex stationary vector; taking real part.")
+      prob.us = Re(prob.us)
+    }
+
+    if(abs(sum(prob.us)) < 1e-8) {
+      stop(sprintf("Sum of eigenvector from TM at iteration %d is zero; check TM for degeneracy.", i))
+    }
+
+    prob.us = prob.us/sum(prob.us)
+    prob[i,] = prob.us
     for(j in 1:n.models){
       BF[[i]][,j] = prob[i,]/prob[i,j] * model.prior[j]/model.prior
     }
